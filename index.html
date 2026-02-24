@@ -356,9 +356,9 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
       <div class="inv-info-box" id="sell-info"></div>
       <div class="form-grid">
         <div class="form-group"><label class="form-label">销售日期 *</label><input class="form-input" type="date" id="fs-sale_date"></div>
-        <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fs-quantity" placeholder="0"></div>
-        <div class="form-group"><label class="form-label">销售单价 *</label><input class="form-input" type="number" step="0.01" id="fs-sale_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">成本单价</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">销售数量 * (库存: <span id="fs-stock-display">0</span>)</label><input class="form-input" type="number" id="fs-quantity" placeholder="0" min="1"></div>
+        <div class="form-group"><label class="form-label">售价 (单价) *</label><input class="form-input" type="number" step="0.01" id="fs-sale_price" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">成本单价 (auto)</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" readonly style="color:var(--text2)"></div>
         <div class="form-group"><label class="form-label">销售总额 (auto)</label><input class="form-input" type="number" id="fs-sale_total" readonly style="color:var(--accent3)"></div>
         <div class="form-group"><label class="form-label">利润 (auto)</label><input class="form-input" type="number" id="fs-profit" readonly style="color:var(--green)"></div>
         <div class="form-group"><label class="form-label">买家</label><input class="form-input" type="text" id="fs-buyer" placeholder="买家名称"></div>
@@ -723,17 +723,15 @@ $('sell-modal').addEventListener('click', e => { if(e.target===$('sell-modal')) 
 
 function openSellModal(invId) {
   sellInvRow = invData.find(r=>r.id===invId); if(!sellInvRow) return;
-  // calculate group avg_cost from all rows of same spec
-  const grpRows = invData.filter(r => r.spec === sellInvRow.spec);
-  const grpQty = grpRows.reduce((s,r)=>s+(r.quantity||0),0);
-  const grpCost = grpRows.reduce((s,r)=>s+((r.quantity||0)*(parseFloat(r.unit_price)||0)),0);
-  const grpAvgCost = grpQty > 0 ? grpCost / grpQty : 0;
-  const grpTotalQty = grpQty;
+  const unitCost = parseFloat(sellInvRow.unit_price) || 0;
+  const stock = sellInvRow.quantity || 0;
   $('sell-info').innerHTML =
     `规格: <b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 料号: <b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>` +
-    `总数量: <b style="color:var(--accent)">${fmt(grpTotalQty)}</b> &nbsp;|&nbsp; 平均成本: <b style="color:var(--accent3)">${grpAvgCost.toFixed(2)}</b>`;
+    `入库日期: <b style="color:var(--text)">${sellInvRow.entry_date||''}</b> &nbsp;|&nbsp; 单价: <b style="color:var(--text2)">${unitCost.toFixed(2)}</b> &nbsp;|&nbsp; 当前库存: <b style="color:var(--accent)">${fmt(stock)}</b>`;
+  $('fs-stock-display').textContent = fmt(stock);
   ['sale_date','quantity','sale_price','sale_total','profit','buyer','notes'].forEach(f=>{const el=$('fs-'+f);if(el)el.value='';});
-  $('fs-sale_date').value=today(); $('fs-cost_price').value=grpAvgCost.toFixed(2);
+  $('fs-sale_date').value = today();
+  $('fs-cost_price').value = unitCost.toFixed(2);
   openModal('sell-modal');
 }
 
@@ -742,18 +740,33 @@ function calcSell() {
   $('fs-sale_total').value=qty&&sp?(qty*sp).toFixed(2):'';
   $('fs-profit').value=qty&&sp?(qty*(sp-cp)).toFixed(2):'';
 }
-['fs-quantity','fs-sale_price','fs-cost_price'].forEach(id=>$(id).addEventListener('input',calcSell));
+['fs-quantity','fs-sale_price'].forEach(id=>$(id).addEventListener('input',calcSell));
 
 $('sell-modal-save').addEventListener('click', async () => {
   const g=f=>$('fs-'+f).value.trim();
   const qty=parseInt(g('quantity'))||0, sp=parseFloat(g('sale_price'));
   if (!g('sale_date')||!qty||!sp){showNotif('Fill required fields',true);return;}
+  const stock = sellInvRow.quantity || 0;
+  if (qty > stock){showNotif(`库存不足！当前库存: ${fmt(stock)}`,true);return;}
   const cp=parseFloat(g('cost_price'))||null;
+  const newQty = stock - qty;
   try {
-    await sbInsert('sales',{sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,buyer:g('buyer')||null,notes:g('notes')||null});
-    showNotif('Sale recorded ✓');
+    // 1. Deduct from inventory
+    await sbUpdate('inventory', sellInvRow.id, { quantity: newQty });
+    // 2. Record sale
+    await sbInsert('sales',{
+      sale_date:g('sale_date'), quantity:qty, sale_price:sp,
+      sale_total:qty*sp, cost_price:cp,
+      profit:cp!=null?qty*(sp-cp):null,
+      spec:sellInvRow.spec, part_number:sellInvRow.part_number,
+      buyer:g('buyer')||null, notes:g('notes')||null
+    });
+    showNotif(`已售出 ${fmt(qty)} 件，库存剩余 ${fmt(newQty)} ✓`);
     closeModal('sell-modal');
+    // Reload both tables
+    await loadInventory();
     await loadSales();
+    // Switch to sales tab
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.tab')[1].classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
