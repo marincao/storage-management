@@ -59,6 +59,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .header-right{display:flex;align-items:center;gap:8px}
 .live-badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent)}
 .live-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:blink 1.5s ease-in-out infinite}
+.live-dot.polling{background:var(--accent2)}
+.live-dot.disconnected{background:var(--text3);animation:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .hdr-btn{font-size:12px;color:var(--text2);background:none;border:1px solid var(--border2);border-radius:4px;padding:5px 12px;cursor:pointer;transition:all .2s}
 .hdr-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -237,7 +239,7 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
     <div><div class="logo-text">库存管理系统</div><div class="logo-sub">实时多用户 · Supabase</div></div>
   </div>
   <div class="header-right">
-    <div class="live-badge"><div class="live-dot"></div>实时在线</div>
+    <div class="live-badge" id="live-badge"><div class="live-dot" id="live-dot"></div><span id="live-label">实时在线</span></div>
     <button id="theme-btn" title="切换主题">🌙</button>
     <button class="hdr-btn" id="disconnect-btn">重新连接</button>
   </div>
@@ -531,7 +533,133 @@ $('theme-btn').addEventListener('click',()=>{
 // ════════════════════════════════════════
 //  连接
 // ════════════════════════════════════════
-function showApp(){ $('config-screen').classList.add('hidden'); loadInventory(); loadSales(); }
+function showApp(){ $('config-screen').classList.add('hidden'); loadInventory(); loadSales(); startRealtime(); }
+
+// ════════════════════════════════════════
+//  实时更新：Supabase Realtime + 轮询兜底
+// ════════════════════════════════════════
+let rtWs = null;          // WebSocket 连接
+let rtHeartbeat = null;   // ping 定时器
+let pollTimer = null;     // 轮询定时器
+let rtConnected = false;
+const POLL_INTERVAL = 8000; // 轮询间隔 ms（Realtime 断连时启用）
+
+// 上次各表哈希，用于判断数据是否真正变化（避免无谓重渲）
+let lastInvHash = '', lastSalesHash = '';
+function hashArr(arr){ return arr.map(r=>r.id+'|'+(r.quantity??'')+'|'+(r.unit_price??'')+'|'+(r.linda_payment??'')+'|'+(r.status??'')).join(','); }
+
+function setStatus(mode) {
+  const dot = $('live-dot'), lbl = $('live-label');
+  if (mode === 'realtime') {
+    dot.className = 'live-dot';                 // 绿色 + 闪烁
+    lbl.textContent = '实时推送';
+  } else if (mode === 'polling') {
+    dot.className = 'live-dot polling';         // 蓝色
+    lbl.textContent = '轮询同步';
+  } else {
+    dot.className = 'live-dot disconnected';    // 灰色
+    lbl.textContent = '未连接';
+  }
+}
+
+// 安静刷新——只在数据真正变化时重渲
+async function silentRefresh() {
+  try {
+    const [newInv, newSales] = await Promise.all([sbSelect('inventory'), sbSelect('sales')]);
+    const ih = hashArr(newInv), sh = hashArr(newSales);
+    if (ih !== lastInvHash) {
+      invData = newInv; lastInvHash = ih;
+      renderInventory(); refreshInvFilters(); updateInvStats(); buildMsPanel();
+    }
+    if (sh !== lastSalesHash) {
+      salesData = newSales; lastSalesHash = sh;
+      renderSales(); refreshSalesFilters(); updateSalesStats();
+    }
+  } catch(e) { /* 静默失败 */ }
+}
+
+// 启动轮询（Realtime 不可用时的兜底）
+function startPolling() {
+  stopPolling();
+  setStatus('polling');
+  pollTimer = setInterval(silentRefresh, POLL_INTERVAL);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// 启动 Supabase Realtime（WebSocket — v2 协议）
+function startRealtime() {
+  stopRealtime();
+  const wsUrl = API_URL.replace(/^https/, 'wss').replace(/^http/, 'ws')
+    + '/realtime/v1/websocket?apikey=' + encodeURIComponent(API_KEY) + '&vsn=1.0.0';
+  try { rtWs = new WebSocket(wsUrl); }
+  catch(e) { startPolling(); return; }
+
+  let joinRef = 0;
+
+  rtWs.onopen = () => {
+    rtConnected = true;
+    setStatus('realtime');
+    stopPolling();
+
+    // v2: subscribe to ALL postgres changes on public schema
+    // One channel covers both tables
+    const ref = ++joinRef;
+    const joinMsg = {
+      topic: 'realtime:*',
+      event: 'phx_join',
+      payload: {
+        config: {
+          broadcast: { self: false },
+          presence: { key: '' },
+          postgres_changes: [
+            { event: '*', schema: 'public', table: 'inventory' },
+            { event: '*', schema: 'public', table: 'sales' }
+          ]
+        }
+      },
+      ref: String(ref),
+      join_ref: String(ref)
+    };
+    rtWs.send(JSON.stringify(joinMsg));
+
+    // heartbeat every 30s
+    rtHeartbeat = setInterval(() => {
+      if (rtWs && rtWs.readyState === WebSocket.OPEN)
+        rtWs.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++joinRef) }));
+    }, 30000);
+  };
+
+  rtWs.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      // Realtime v2 fires postgres_changes inside payload.data
+      if (msg.event === 'postgres_changes') {
+        silentRefresh();
+        return;
+      }
+      // Also catch the INSERT/UPDATE/DELETE wrapped form
+      if (msg.payload && msg.payload.data && ['INSERT','UPDATE','DELETE'].includes(msg.payload.data.type)) {
+        silentRefresh();
+      }
+    } catch(_) {}
+  };
+
+  rtWs.onerror = () => {};
+  rtWs.onclose = () => {
+    rtConnected = false;
+    if (rtHeartbeat) { clearInterval(rtHeartbeat); rtHeartbeat = null; }
+    startPolling();
+    setTimeout(startRealtime, 5000);
+  };
+}
+
+function stopRealtime() {
+  if (rtHeartbeat) { clearInterval(rtHeartbeat); rtHeartbeat = null; }
+  if (rtWs) { rtWs.onclose = null; rtWs.close(); rtWs = null; }
+  rtConnected = false;
+}
 
 sbSelect('inventory').then(()=>showApp()).catch(e=>{
   $('cfg-err').textContent='连接失败：'+e.message;
@@ -548,7 +676,7 @@ $('connect-btn').addEventListener('click',async()=>{
   try{API_URL=url;API_KEY=key;await sbSelect('inventory');showApp();}
   catch(e){errEl.textContent='连接失败：'+e.message;errEl.style.display='block';$('connect-btn').disabled=false;$('connect-btn').textContent='连接数据库 →';}
 });
-$('disconnect-btn').addEventListener('click',()=>{if(confirm('重新加载页面？'))location.reload();});
+$('disconnect-btn').addEventListener('click',()=>{if(confirm('重新加载页面？')){ stopRealtime(); stopPolling(); location.reload(); }});
 
 // ════════════════════════════════════════
 //  标签页
@@ -696,7 +824,7 @@ function updateMsLabel() {
 //  库存
 // ════════════════════════════════════════
 async function loadInventory(){
-  try{ invData=await sbSelect('inventory'); renderInventory(); refreshInvFilters(); updateInvStats(); refreshDL(); buildMsPanel(); }
+  try{ invData=await sbSelect('inventory'); lastInvHash=hashArr(invData); renderInventory(); refreshInvFilters(); updateInvStats(); refreshDL(); buildMsPanel(); }
   catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
@@ -874,7 +1002,7 @@ $('sell-modal-save').addEventListener('click',async()=>{
 //  销售记录
 // ════════════════════════════════════════
 async function loadSales(){
-  try{ salesData=await sbSelect('sales'); renderSales(); refreshSalesFilters(); updateSalesStats(); refreshDL(); }
+  try{ salesData=await sbSelect('sales'); lastSalesHash=hashArr(salesData); renderSales(); refreshSalesFilters(); updateSalesStats(); refreshDL(); }
   catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
