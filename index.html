@@ -3,185 +3,207 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>库存管理系统 · SSD Inventory</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>库存管理系统 · SSD</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#0d0f14;--surface:#13161e;--surface2:#1a1e28;--border:#252a38;--border2:#2e3547;
-    --accent:#00d4aa;--accent2:#0099ff;--accent3:#ff6b35;
-    --text:#e2e8f0;--text2:#8b96b0;--text3:#4a5568;
-    --green:#22c55e;--red:#ef4444;
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'IBM Plex Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,170,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,170,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
-  .wrapper{position:relative;z-index:1}
+:root {
+  --bg:#0d0f14;--surface:#13161e;--surface2:#1a1e28;--border:#252a38;--border2:#2e3547;
+  --accent:#00d4aa;--accent2:#0099ff;--accent3:#ff6b35;
+  --text:#e2e8f0;--text2:#8b96b0;--text3:#4a5568;
+  --green:#22c55e;--red:#ef4444;--shadow:rgba(0,0,0,0.4);--grid:rgba(0,212,170,0.03);
+}
+body.light {
+  --bg:#f0f2f5;--surface:#ffffff;--surface2:#f7f9fc;--border:#e2e8f0;--border2:#cbd5e1;
+  --accent:#009e80;--accent2:#0070cc;--accent3:#e05a20;
+  --text:#1a202c;--text2:#4a5568;--text3:#a0aec0;
+  --green:#16a34a;--red:#dc2626;--shadow:rgba(0,0,0,0.08);--grid:rgba(0,150,120,0.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background .3s,color .3s}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrapper{position:relative;z-index:1}
 
-  /* CONFIG */
-  .config-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center}
-  .config-screen.hidden{display:none}
-  .config-box{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:40px;width:560px;max-width:95vw}
-  .config-logo-mark{width:48px;height:48px;background:var(--accent);clip-path:polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%);margin:0 auto 12px}
-  .config-title{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--accent);text-align:center}
-  .config-sub{font-size:12px;color:var(--text2);text-align:center;margin-top:6px;line-height:1.6}
-  .config-steps{margin-top:24px;display:flex;flex-direction:column;gap:14px}
-  .config-step{display:flex;gap:12px;align-items:flex-start}
-  .step-num{width:22px;height:22px;min-width:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:var(--bg);margin-top:2px}
-  .step-text{font-size:12px;color:var(--text2);line-height:1.6}
-  .step-text a{color:var(--accent2);text-decoration:none}
-  .step-text b{color:var(--text)}
-  .step-text code{background:var(--surface2);padding:2px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent)}
-  .sql-box{margin-top:20px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:14px;position:relative}
-  .sql-label{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-  #copy-sql-btn{position:absolute;top:12px;right:12px;background:var(--border2);border:none;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;border-radius:3px;cursor:pointer;letter-spacing:1px;text-transform:uppercase}
-  .sql-pre{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);white-space:pre-wrap;line-height:1.6;overflow:auto;max-height:150px}
-  .config-inputs{display:flex;flex-direction:column;gap:12px;margin-top:24px}
-  .config-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block}
-  .config-input{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;border-radius:4px;outline:none;transition:border .2s}
-  .config-input:focus{border-color:var(--accent)}
-  .config-input::placeholder{color:var(--text3)}
-  #connect-btn{width:100%;margin-top:8px;padding:12px;background:var(--accent);border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--bg);cursor:pointer;transition:all .2s}
-  #connect-btn:hover{background:#00f0c0;box-shadow:0 0 20px rgba(0,212,170,0.4)}
-  #connect-btn:disabled{opacity:0.5;cursor:not-allowed}
-  .config-err{font-size:11px;color:var(--red);text-align:center;font-family:'IBM Plex Mono',monospace;margin-top:10px;display:none}
+.config-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center}
+.config-screen.hidden{display:none}
+.config-box{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:40px;width:560px;max-width:95vw}
+.config-logo-mark{width:48px;height:48px;background:var(--accent);clip-path:polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%);margin:0 auto 12px}
+.config-title{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--accent);text-align:center}
+.config-sub{font-size:12px;color:var(--text2);text-align:center;margin-top:6px;line-height:1.6}
+.config-steps{margin-top:24px;display:flex;flex-direction:column;gap:14px}
+.config-step{display:flex;gap:12px;align-items:flex-start}
+.step-num{width:22px;height:22px;min-width:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#fff;margin-top:2px}
+.step-text{font-size:12px;color:var(--text2);line-height:1.6}
+.step-text a{color:var(--accent2);text-decoration:none}
+.step-text b{color:var(--text)}
+.step-text code{background:var(--surface2);padding:2px 6px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent)}
+.sql-box{margin-top:20px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:14px;position:relative}
+.sql-label{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+#copy-sql-btn{position:absolute;top:12px;right:12px;background:var(--border2);border:none;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;border-radius:3px;cursor:pointer}
+.sql-pre{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);white-space:pre-wrap;line-height:1.6;overflow:auto;max-height:150px}
+.config-inputs{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+.config-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block}
+.config-input{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;border-radius:4px;outline:none;transition:border .2s}
+.config-input:focus{border-color:var(--accent)}
+.config-input::placeholder{color:var(--text3)}
+#connect-btn{width:100%;margin-top:8px;padding:12px;background:var(--accent);border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#fff;cursor:pointer;transition:all .2s}
+#connect-btn:hover{filter:brightness(1.1);box-shadow:0 0 20px rgba(0,212,170,0.4)}
+#connect-btn:disabled{opacity:.5;cursor:not-allowed}
+.config-err{font-size:11px;color:var(--red);text-align:center;font-family:'IBM Plex Mono',monospace;margin-top:10px;display:none}
 
-  /* HEADER */
-  header{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid var(--border);background:rgba(13,15,20,0.9);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100}
-  .logo{display:flex;align-items:center;gap:12px}
-  .logo-mark{width:36px;height:36px;background:var(--accent);clip-path:polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--bg);animation:pulse 3s ease-in-out infinite}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.4)}50%{box-shadow:0 0 0 8px rgba(0,212,170,0)}}
-  .logo-text{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase}
-  .logo-sub{font-size:10px;color:var(--text2);letter-spacing:3px;font-weight:300}
-  .header-right{display:flex;align-items:center;gap:16px}
-  .live-badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;text-transform:uppercase}
-  .live-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:blink 1.5s ease-in-out infinite}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-  #disconnect-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:3px;padding:4px 8px;cursor:pointer;transition:all .2s}
-  #disconnect-btn:hover{border-color:var(--red);color:var(--red)}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;box-shadow:0 1px 8px var(--shadow)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:34px;height:34px;background:var(--accent);clip-path:polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#fff;animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.4)}50%{box-shadow:0 0 0 8px rgba(0,212,170,0)}}
+.logo-text{font-size:15px;font-weight:600}
+.logo-sub{font-size:11px;color:var(--text2)}
+.header-right{display:flex;align-items:center;gap:8px}
+.live-badge{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent)}
+.live-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.hdr-btn{font-size:12px;color:var(--text2);background:none;border:1px solid var(--border2);border-radius:4px;padding:5px 12px;cursor:pointer;transition:all .2s}
+.hdr-btn:hover{border-color:var(--accent);color:var(--accent)}
+#theme-btn{font-size:16px;border:none;background:none;cursor:pointer;padding:4px 8px;color:var(--text2);border-radius:4px;transition:background .2s}
+#theme-btn:hover{background:var(--surface2)}
 
-  /* TABS */
-  .tabs{display:flex;border-bottom:1px solid var(--border);padding:0 32px;background:var(--surface)}
-  .tab{padding:14px 24px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
-  .tab:hover{color:var(--text)}
-  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-  .tab.sales-tab.active{color:var(--accent3);border-bottom-color:var(--accent3)}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 28px;background:var(--surface)}
+.tab{padding:13px 22px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab.sales-tab.active{color:var(--accent3);border-bottom-color:var(--accent3)}
 
-  /* STATS */
-  .stats-bar{display:flex;gap:1px;background:var(--border);border-bottom:1px solid var(--border);padding:0 32px}
-  .stat-card{flex:1;padding:16px 20px;background:var(--surface);display:flex;flex-direction:column;gap:4px;transition:background .2s}
-  .stat-card:hover{background:var(--surface2)}
-  .stat-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3)}
-  .stat-value{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--accent)}
-  .stat-value.blue{color:var(--accent2)}.stat-value.orange{color:var(--accent3)}.stat-value.green{color:var(--green)}.stat-value.red{color:var(--red)}
+.stats-bar{display:flex;gap:1px;background:var(--border);border-bottom:1px solid var(--border);padding:0 28px}
+.stat-card{flex:1;padding:14px 18px;background:var(--surface);display:flex;flex-direction:column;gap:4px;transition:background .2s}
+.stat-card:hover{background:var(--surface2)}
+.stat-label{font-size:11px;color:var(--text3)}
+.stat-value{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--accent)}
+.stat-value.blue{color:var(--accent2)}.stat-value.orange{color:var(--accent3)}.stat-value.green{color:var(--green)}.stat-value.red{color:var(--red)}
 
-  /* TOOLBAR */
-  .toolbar{display:flex;align-items:center;gap:12px;padding:16px 32px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-  .date-display{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2);padding:8px 16px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);margin-right:auto}
-  input,select,textarea{background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Sans JP',sans-serif;font-size:13px;border-radius:4px;outline:none;transition:border .2s,box-shadow .2s}
-  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
-  .search-box{padding:8px 14px;width:220px}
-  .filter-select{padding:8px 14px;cursor:pointer}
-  select option{background:var(--surface)}
-  .btn{padding:8px 20px;border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase}
-  .btn-primary{background:var(--accent);color:var(--bg)}
-  .btn-primary:hover{background:#00f0c0;box-shadow:0 0 20px rgba(0,212,170,0.4);transform:translateY(-1px)}
-  .btn-secondary{background:transparent;color:var(--text2);border:1px solid var(--border2)}
-  .btn-secondary:hover{border-color:var(--accent2);color:var(--accent2)}
-  .btn-sales{background:var(--accent3);color:#fff}
-  .btn-sales:hover{background:#ff8c5a;box-shadow:0 0 20px rgba(255,107,53,0.4);transform:translateY(-1px)}
-  .action-btn{border:none;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase;padding:5px 10px}
-  .btn-sel{background:rgba(255,107,53,0.1);color:var(--accent3);border:1px solid rgba(255,107,53,0.3)}
-  .btn-sel:hover{background:rgba(255,107,53,0.2);border-color:var(--accent3)}
-  .btn-edit{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.3)}
-  .btn-edit:hover{background:rgba(0,153,255,0.2);border-color:var(--accent2)}
-  .btn-del{background:rgba(239,68,68,0.08);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
-  .btn-del:hover{background:rgba(239,68,68,0.15);border-color:var(--red)}
+.toolbar{display:flex;align-items:center;gap:10px;padding:12px 28px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--surface2)}
+.date-display{font-size:12px;color:var(--text2);padding:7px 14px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);margin-right:auto}
+input,select,textarea{background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:13px;border-radius:4px;outline:none;transition:border .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
+.search-box{padding:7px 12px;width:200px}
+.filter-select{padding:7px 12px;cursor:pointer}
+select option{background:var(--surface)}
 
-  /* TABLE */
-  .table-container{padding:0 32px 32px;overflow-x:auto}
-  .table-title{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text2);padding:20px 0 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-  .table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
-  .table-title.sales-title::before{background:var(--accent3)}
-  table{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px}
-  thead tr{background:var(--surface);border-bottom:2px solid var(--accent)}
-  thead tr.sales-head{border-bottom-color:var(--accent3)}
-  th{padding:10px 14px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text2);white-space:nowrap;user-select:none}
-  th.sortable{cursor:pointer}th.sortable:hover{color:var(--accent)}
-  tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
-  tbody tr:hover{background:rgba(0,212,170,0.03)}
-  td{padding:11px 14px;color:var(--text);white-space:nowrap}
-  td.mono{font-family:'IBM Plex Mono',monospace;font-size:11px}
-  .tag{display:inline-flex;align-items:center;padding:3px 8px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;letter-spacing:1px}
-  .tag-green{background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2)}
-  .tag-blue{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.2)}
-  .tag-orange{background:rgba(255,107,53,0.1);color:var(--accent3);border:1px solid rgba(255,107,53,0.2)}
-  .tag-gray{background:rgba(139,150,176,0.1);color:var(--text2);border:1px solid rgba(139,150,176,0.2)}
-  .tag-red{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
-  tfoot tr{background:var(--surface);border-top:2px solid var(--border2)}
-  tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent);padding:12px 14px}
-  .sort-ind{margin-left:4px;color:var(--accent)}
-  .profit-pos{color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600}
-  .profit-neg{color:var(--red);font-family:'IBM Plex Mono',monospace;font-weight:600}
-  .loading-msg td{text-align:center;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;padding:40px}
+/* ── 多选规格筛选（工具栏） ── */
+.ms-wrap{position:relative;display:inline-block}
+.ms-btn{display:flex;align-items:center;gap:6px;padding:7px 28px 7px 12px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-size:13px;font-family:'Noto Sans SC',sans-serif;cursor:pointer;white-space:nowrap;min-width:110px;position:relative;transition:border .2s,box-shadow .2s;user-select:none}
+.ms-btn:hover,.ms-btn.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
+.ms-btn::after{content:'▾';position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text2);pointer-events:none}
+.ms-badge{background:var(--accent);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700;line-height:1.4}
+.ms-panel{position:absolute;top:calc(100% + 4px);left:0;min-width:100%;max-height:240px;overflow-y:auto;background:var(--surface);border:1px solid var(--accent);border-radius:6px;z-index:500;box-shadow:0 8px 28px var(--shadow);display:none;padding:4px 0}
+.ms-panel.open{display:block}
+.ms-item{display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;font-size:13px;transition:background .12s;white-space:nowrap}
+.ms-item:hover{background:var(--surface2)}
+.ms-item input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin:0}
+.ms-footer{padding:6px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);cursor:pointer;text-align:center;transition:color .15s}
+.ms-footer:hover{color:var(--accent)}
 
-  /* EMPTY */
-  .empty-state{text-align:center;padding:60px 20px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:2px;display:none}
-  .empty-icon{font-size:40px;margin-bottom:16px;opacity:.3}
+/* ── 表单内可编辑下拉（combobox） ── */
+.cb-wrap{position:relative;width:100%}
+.cb-input{width:100%;padding:9px 30px 9px 11px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:13px;border-radius:4px;outline:none;transition:border .2s,box-shadow .2s}
+.cb-input:focus,.cb-input.open{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
+.cb-input::placeholder{color:var(--text3)}
+.cb-arrow{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text2);cursor:pointer;padding:4px;line-height:1}
+.cb-panel{position:absolute;top:calc(100% + 2px);left:0;width:100%;max-height:200px;overflow-y:auto;background:var(--surface);border:1px solid var(--accent);border-radius:6px;z-index:600;box-shadow:0 8px 24px var(--shadow);display:none;padding:4px 0}
+.cb-panel.open{display:block}
+.cb-option{padding:9px 12px;cursor:pointer;font-size:13px;transition:background .12s}
+.cb-option:hover,.cb-option.focused{background:var(--surface2);color:var(--accent)}
+.btn{padding:7px 18px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 12px var(--shadow)}
+.btn-secondary{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent2);color:var(--accent2)}
+.btn-sales{background:var(--accent3);color:#fff}
+.btn-sales:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.action-btn{border:none;border-radius:3px;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;padding:4px 9px}
+.btn-sel{background:rgba(255,107,53,0.1);color:var(--accent3);border:1px solid rgba(255,107,53,0.3)}
+.btn-sel:hover{background:rgba(255,107,53,0.2)}
+.btn-edit{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.3)}
+.btn-edit:hover{background:rgba(0,153,255,0.2)}
+.btn-del{background:rgba(239,68,68,0.08);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+.btn-del:hover{background:rgba(239,68,68,0.15)}
 
-  /* MODAL */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-  .modal-overlay.open{opacity:1;pointer-events:all}
-  .modal{background:var(--surface);border:1px solid var(--border2);border-radius:8px;width:660px;max-width:95vw;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:transform .2s;box-shadow:0 24px 80px rgba(0,0,0,0.6)}
-  .modal-overlay.open .modal{transform:translateY(0)}
-  .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-  .modal-title{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
-  .modal-title.orange{color:var(--accent3)}
-  .modal-close{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;transition:color .2s}
-  .modal-close:hover{color:var(--text)}
-  .modal-body{padding:24px}
-  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .form-group{display:flex;flex-direction:column;gap:6px}
-  .form-group.full{grid-column:1/-1}
-  .form-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text2)}
-  .form-input{padding:10px 12px;width:100%}
-  .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
-  .inv-info-box{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;line-height:1.8}
+.table-container{padding:0 28px 32px;overflow-x:auto}
+.table-title{font-size:12px;font-weight:600;color:var(--text2);padding:18px 0 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
+.table-title.sales-title::before{background:var(--accent3)}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px}
+thead tr{background:var(--surface2);border-bottom:2px solid var(--accent)}
+thead tr.sales-head{border-bottom-color:var(--accent3)}
+th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;user-select:none}
+th.sortable{cursor:pointer}th.sortable:hover{color:var(--accent)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--surface2)}
+td{padding:10px 12px;color:var(--text);white-space:nowrap}
+td.mono{font-family:'IBM Plex Mono',monospace;font-size:11px}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:500}
+.tag-green{background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2)}
+.tag-blue{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.2)}
+.tag-orange{background:rgba(255,107,53,0.1);color:var(--accent3);border:1px solid rgba(255,107,53,0.2)}
+.tag-gray{background:rgba(139,150,176,0.1);color:var(--text2);border:1px solid rgba(139,150,176,0.2)}
+.tag-red{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+tfoot tr{background:var(--surface2);border-top:2px solid var(--border2)}
+tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent);padding:10px 12px}
+.sort-ind{margin-left:4px;font-size:10px}
+.profit-pos{color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600}
+.profit-neg{color:var(--red);font-family:'IBM Plex Mono',monospace;font-weight:600}
+.loading-msg td{text-align:center;color:var(--text3);font-size:12px;padding:40px}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text3);font-size:13px;display:none}
+.empty-icon{font-size:40px;margin-bottom:16px;opacity:.3}
 
-  .page{display:none}.page.active{display:block}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:10px;width:660px;max-width:95vw;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:transform .2s;box-shadow:0 24px 80px var(--shadow)}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:14px;font-weight:600;color:var(--accent)}
+.modal-title.orange{color:var(--accent3)}
+.modal-close{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 8px}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:22px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:11px;font-weight:500;color:var(--text2)}
+.form-input{padding:9px 11px;width:100%}
+.form-hint{font-size:10px;color:var(--text3)}
+.modal-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.inv-info-box{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8}
 
-  .notif{position:fixed;bottom:32px;right:32px;padding:14px 20px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);z-index:500;transform:translateY(100px);opacity:0;transition:all .3s;box-shadow:0 8px 32px rgba(0,212,170,0.2)}
-  .notif.show{transform:translateY(0);opacity:1}
-
-  ::-webkit-scrollbar{width:6px;height:6px}
-  ::-webkit-scrollbar-track{background:var(--bg)}
-  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.page{display:none}.page.active{display:block}
+.notif{position:fixed;bottom:28px;right:28px;padding:12px 18px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;font-size:13px;color:var(--accent);z-index:500;transform:translateY(100px);opacity:0;transition:all .3s;box-shadow:0 8px 32px var(--shadow)}
+.notif.show{transform:translateY(0);opacity:1}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
 <body>
 <div class="wrapper">
 
-<!-- CONFIG SCREEN -->
+<!-- 配置页（凭证已内置，默认隐藏） -->
 <div class="config-screen hidden" id="config-screen">
   <div class="config-box">
     <div style="text-align:center;margin-bottom:28px">
       <div class="config-logo-mark"></div>
       <div class="config-title">SSD 库存管理系统</div>
-      <div class="config-sub">Enter your Supabase credentials to connect.<br>All users share the same live database.</div>
+      <div class="config-sub">输入 Supabase 连接信息以继续<br>所有用户共享同一数据库</div>
     </div>
     <div class="config-steps">
-      <div class="config-step"><div class="step-num">1</div><div class="step-text">Go to <a href="https://supabase.com" target="_blank">supabase.com</a> → open your project → <b>SQL Editor</b> → run the SQL below (only needed once).</div></div>
-      <div class="config-step"><div class="step-num">2</div><div class="step-text">Go to <b>Project Settings → API</b>. Copy your <code>Project URL</code> and <code>anon public key</code>.</div></div>
-      <div class="config-step"><div class="step-num">3</div><div class="step-text">Paste them below and click Connect. Credentials are saved in your browser — you only do this once per device.</div></div>
+      <div class="config-step"><div class="step-num">1</div><div class="step-text">前往 <a href="https://supabase.com" target="_blank">supabase.com</a> → 打开项目 → <b>SQL 编辑器</b> → 运行下方 SQL（仅需一次）</div></div>
+      <div class="config-step"><div class="step-num">2</div><div class="step-text">前往 <b>项目设置 → API</b>，复制 <code>项目 URL</code> 和 <code>anon 公开密钥</code></div></div>
+      <div class="config-step"><div class="step-num">3</div><div class="step-text">粘贴到下方并点击连接</div></div>
     </div>
     <div class="sql-box">
-      <div class="sql-label">One-time setup SQL</div>
-      <button id="copy-sql-btn">COPY</button>
+      <div class="sql-label">初始化 SQL</div>
+      <button id="copy-sql-btn">复制</button>
       <pre class="sql-pre" id="setup-sql">CREATE TABLE IF NOT EXISTS inventory (
   id BIGSERIAL PRIMARY KEY,
   entry_date TEXT, spec TEXT, part_number TEXT,
   quantity INTEGER, unit_price NUMERIC,
-  linda_payment NUMERIC, avg_cost NUMERIC,
-  total_quantity INTEGER, min_package TEXT,
+  linda_payment NUMERIC, min_package TEXT,
   cargo_owner TEXT, status TEXT DEFAULT '待售',
   warehouse_status TEXT, notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -200,56 +222,54 @@ CREATE POLICY "public_inv" ON inventory FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</pre>
     </div>
     <div class="config-inputs">
-      <div>
-        <label class="config-label">Supabase Project URL</label>
-        <input class="config-input" id="cfg-url" type="text" placeholder="https://xxxxxxxxxxxx.supabase.co">
-      </div>
-      <div>
-        <label class="config-label">Supabase Anon Public Key</label>
-        <input class="config-input" id="cfg-key" type="password" placeholder="eyJhbGci...">
-      </div>
+      <div><label class="config-label">项目 URL</label><input class="config-input" id="cfg-url" type="text" placeholder="https://xxxx.supabase.co"></div>
+      <div><label class="config-label">Anon 公开密钥</label><input class="config-input" id="cfg-key" type="password" placeholder="eyJhbGci..."></div>
     </div>
     <div class="config-err" id="cfg-err"></div>
-    <button id="connect-btn">CONNECT DATABASE →</button>
+    <button id="connect-btn">连接数据库 →</button>
   </div>
 </div>
 
-<!-- HEADER -->
+<!-- 顶栏 -->
 <header>
   <div class="logo">
     <div class="logo-mark">SSD</div>
-    <div><div class="logo-text">库存管理系统</div><div class="logo-sub">SSD Inventory Management</div></div>
+    <div><div class="logo-text">库存管理系统</div><div class="logo-sub">实时多用户 · Supabase</div></div>
   </div>
   <div class="header-right">
-    <div class="live-badge"><div class="live-dot"></div>SUPABASE · LIVE</div>
-    <button id="disconnect-btn">DISCONNECT</button>
+    <div class="live-badge"><div class="live-dot"></div>实时在线</div>
+    <button id="theme-btn" title="切换主题">🌙</button>
+    <button class="hdr-btn" id="disconnect-btn">重新连接</button>
   </div>
 </header>
 
-<!-- TABS -->
+<!-- 标签页 -->
 <div class="tabs">
-  <div class="tab active" data-tab="inventory">📦 库存 Inventory</div>
-  <div class="tab sales-tab" data-tab="sales">💰 销售 Sales & Profit</div>
+  <div class="tab active" data-tab="inventory">📦 库存管理</div>
+  <div class="tab sales-tab" data-tab="sales">💰 销售记录</div>
 </div>
 
-<!-- INVENTORY PAGE -->
+<!-- 库存页 -->
 <div class="page active" id="page-inventory">
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">Total Entries</div><div class="stat-value" id="stat-entries">—</div></div>
-    <div class="stat-card"><div class="stat-label">Total Quantity</div><div class="stat-value blue" id="stat-qty">—</div></div>
-    <div class="stat-card"><div class="stat-label">LINDA付款总额</div><div class="stat-value orange" id="stat-total">—</div></div>
-    <div class="stat-card"><div class="stat-label">SKU Types</div><div class="stat-value green" id="stat-skus">—</div></div>
+    <div class="stat-card"><div class="stat-label">总条目数</div><div class="stat-value" id="stat-entries">—</div></div>
+    <div class="stat-card"><div class="stat-label">总数量</div><div class="stat-value blue" id="stat-qty">—</div></div>
+    <div class="stat-card"><div class="stat-label">Linda 付款总额</div><div class="stat-value orange" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">规格种类</div><div class="stat-value green" id="stat-skus">—</div></div>
   </div>
   <div class="toolbar">
     <div class="date-display" id="inv-date"></div>
-    <input class="search-box" type="text" id="inv-search" placeholder="搜索 料号 / 规格 / 货主...">
-    <select class="filter-select" id="inv-filter-spec"><option value="">All 规格</option></select>
-    <select class="filter-select" id="inv-filter-status"><option value="">All 货况</option></select>
-    <button class="btn btn-secondary" id="inv-export-btn">EXPORT CSV</button>
-    <button class="btn btn-primary" id="inv-add-btn">+ ADD ENTRY</button>
+    <input class="search-box" type="text" id="inv-search" placeholder="搜索料号/规格/货主…">
+    <div class="ms-wrap" id="ms-spec-wrap">
+      <div class="ms-btn" id="ms-spec-btn"><span id="ms-spec-label">全部规格</span></div>
+      <div class="ms-panel" id="ms-spec-panel"></div>
+    </div>
+    <select class="filter-select" id="inv-filter-status"><option value="">全部货况</option></select>
+    <button class="btn btn-secondary" id="inv-export-btn">导出 CSV</button>
+    <button class="btn btn-primary" id="inv-add-btn">＋ 新增入库</button>
   </div>
   <div class="table-container">
-    <div class="table-title">Inventory Records</div>
+    <div class="table-title">库存记录</div>
     <table>
       <thead><tr id="inv-thead">
         <th class="sortable" data-col="entry_date">入库日期<span class="sort-ind" id="is-entry_date"></span></th>
@@ -257,40 +277,44 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
         <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="is-part_number"></span></th>
         <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="is-quantity"></span></th>
         <th class="sortable" data-col="unit_price">单价<span class="sort-ind" id="is-unit_price"></span></th>
-        <th class="sortable" data-col="linda_payment">LINDA付款金额<span class="sort-ind" id="is-linda_payment"></span></th>
-        <th class="sortable" data-col="avg_cost">平均成本<span class="sort-ind" id="is-avg_cost"></span></th>
-        <th class="sortable" data-col="total_quantity">总数量<span class="sort-ind" id="is-total_quantity"></span></th>
+        <th class="sortable" data-col="linda_payment">Linda 付款金额<span class="sort-ind" id="is-linda_payment"></span></th>
+        <th>平均成本</th><th>总数量</th>
         <th>最小包装/箱</th>
         <th class="sortable" data-col="cargo_owner">货主<span class="sort-ind" id="is-cargo_owner"></span></th>
         <th class="sortable" data-col="status">货况<span class="sort-ind" id="is-status"></span></th>
         <th>入仓情况</th><th>备注</th>
         <th style="text-align:center">操作</th>
       </tr></thead>
-      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="14">CONNECTING...</td></tr></tbody>
-      <tfoot><tr><td colspan="3">TOTAL</td><td id="inv-foot-qty" class="mono">—</td><td></td><td id="inv-foot-linda" class="mono">—</td><td colspan="8"></td></tr></tfoot>
+      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="14">连接中…</td></tr></tbody>
+      <tfoot><tr>
+        <td colspan="3">合计</td>
+        <td id="inv-foot-qty" class="mono">—</td><td></td>
+        <td id="inv-foot-linda" class="mono">—</td>
+        <td colspan="8"></td>
+      </tr></tfoot>
     </table>
-    <div class="empty-state" id="inv-empty"><div class="empty-icon">📦</div>NO RECORDS FOUND</div>
+    <div class="empty-state" id="inv-empty"><div class="empty-icon">📦</div>暂无记录</div>
   </div>
 </div>
 
-<!-- SALES PAGE -->
+<!-- 销售页 -->
 <div class="page" id="page-sales">
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">Total Transactions</div><div class="stat-value" id="ss-count">—</div></div>
-    <div class="stat-card"><div class="stat-label">Units Sold</div><div class="stat-value blue" id="ss-units">—</div></div>
-    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value orange" id="ss-revenue">—</div></div>
-    <div class="stat-card"><div class="stat-label">Total Profit</div><div class="stat-value green" id="ss-profit">—</div></div>
-    <div class="stat-card"><div class="stat-label">Profit Margin</div><div class="stat-value" id="ss-margin">—</div></div>
+    <div class="stat-card"><div class="stat-label">销售笔数</div><div class="stat-value" id="ss-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">已售数量</div><div class="stat-value blue" id="ss-units">—</div></div>
+    <div class="stat-card"><div class="stat-label">总销售额</div><div class="stat-value orange" id="ss-revenue">—</div></div>
+    <div class="stat-card"><div class="stat-label">总利润</div><div class="stat-value green" id="ss-profit">—</div></div>
+    <div class="stat-card"><div class="stat-label">利润率</div><div class="stat-value" id="ss-margin">—</div></div>
   </div>
   <div class="toolbar">
     <div class="date-display" id="sales-date"></div>
-    <input class="search-box" type="text" id="sales-search" placeholder="搜索 料号 / 规格 / 买家...">
-    <select class="filter-select" id="sales-filter-spec"><option value="">All 规格</option></select>
-    <button class="btn btn-secondary" id="sales-export-btn">EXPORT CSV</button>
-    <button class="btn btn-sales" id="sales-add-btn">+ RECORD SALE</button>
+    <input class="search-box" type="text" id="sales-search" placeholder="搜索料号/规格/买家…">
+    <select class="filter-select" id="sales-filter-spec"><option value="">全部规格</option></select>
+    <button class="btn btn-secondary" id="sales-export-btn">导出 CSV</button>
+    <button class="btn btn-sales" id="sales-add-btn">＋ 新增销售</button>
   </div>
   <div class="table-container">
-    <div class="table-title sales-title">Sales Records</div>
+    <div class="table-title sales-title">销售记录</div>
     <table>
       <thead><tr class="sales-head" id="sales-thead">
         <th class="sortable" data-col="sale_date">销售日期<span class="sort-ind" id="ss-sale_date"></span></th>
@@ -305,9 +329,9 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
         <th class="sortable" data-col="buyer">买家<span class="sort-ind" id="ss-buyer"></span></th>
         <th>备注</th><th style="text-align:center">操作</th>
       </tr></thead>
-      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="12">CONNECTING...</td></tr></tbody>
+      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="12">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="3">TOTAL</td>
+        <td colspan="3">合计</td>
         <td id="sales-foot-qty" class="mono">—</td><td></td>
         <td id="sales-foot-rev" class="mono">—</td><td></td>
         <td id="sales-foot-profit" class="mono">—</td>
@@ -315,84 +339,137 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
         <td colspan="3"></td>
       </tr></tfoot>
     </table>
-    <div class="empty-state" id="sales-empty"><div class="empty-icon">💰</div>NO SALES RECORDED YET</div>
+    <div class="empty-state" id="sales-empty"><div class="empty-icon">💰</div>暂无销售记录</div>
   </div>
 </div>
 
-<!-- INV MODAL -->
+<!-- 入库弹窗 -->
 <div class="modal-overlay" id="inv-modal">
   <div class="modal">
-    <div class="modal-header"><div class="modal-title" id="inv-modal-title">ADD NEW ENTRY</div><button class="modal-close" id="inv-modal-close">✕</button></div>
+    <div class="modal-header"><div class="modal-title" id="inv-modal-title">新增入库</div><button class="modal-close" id="inv-modal-close">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-group"><label class="form-label">入库日期 *</label><input class="form-input" type="date" id="fi-entry_date"></div>
-        <div class="form-group"><label class="form-label">规格 *</label><input class="form-input" type="text" id="fi-spec" placeholder="e.g. EMMC 8G"></div>
-        <div class="form-group"><label class="form-label">料号 *</label><input class="form-input" type="text" id="fi-part_number" placeholder="e.g. KLM8G1GETF-B041006"></div>
+        <div class="form-group">
+          <label class="form-label">规格 *</label>
+          <div class="cb-wrap" id="cb-wrap-spec">
+            <input class="cb-input form-input" type="text" id="fi-spec" placeholder="如 EMMC 8G" autocomplete="off">
+            <span class="cb-arrow" data-cb="spec">▾</span>
+            <div class="cb-panel" id="cb-panel-spec"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">料号 *</label>
+          <div class="cb-wrap" id="cb-wrap-part_number">
+            <input class="cb-input form-input" type="text" id="fi-part_number" placeholder="如 KLM8G1GETF-B041006" autocomplete="off">
+            <span class="cb-arrow" data-cb="part_number">▾</span>
+            <div class="cb-panel" id="cb-panel-part_number"></div>
+          </div>
+        </div>
         <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fi-quantity" placeholder="0"></div>
         <div class="form-group"><label class="form-label">单价</label><input class="form-input" type="number" step="0.01" id="fi-unit_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">LINDA付款金额</label><input class="form-input" type="number" step="0.01" id="fi-linda_payment" placeholder="0.00"></div>
-
-        <div class="form-group"><label class="form-label">最小包装/箱</label><input class="form-input" type="text" id="fi-min_package" placeholder="1120/4480/箱"></div>
-        <div class="form-group"><label class="form-label">货主</label><input class="form-input" type="text" id="fi-cargo_owner" placeholder="e.g. LINDA"></div>
+        <div class="form-group">
+          <label class="form-label">Linda 付款金额（自动 = 数量 × 单价）</label>
+          <input class="form-input" type="number" step="0.01" id="fi-linda_payment" readonly style="color:var(--accent3);background:var(--surface2)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">最小包装/箱</label>
+          <div class="cb-wrap" id="cb-wrap-min_package">
+            <input class="cb-input form-input" type="text" id="fi-min_package" placeholder="如 1120/4480/箱" autocomplete="off">
+            <span class="cb-arrow" data-cb="min_package">▾</span>
+            <div class="cb-panel" id="cb-panel-min_package"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">货主</label>
+          <div class="cb-wrap" id="cb-wrap-cargo_owner">
+            <input class="cb-input form-input" type="text" id="fi-cargo_owner" placeholder="如 LINDA" autocomplete="off">
+            <span class="cb-arrow" data-cb="cargo_owner">▾</span>
+            <div class="cb-panel" id="cb-panel-cargo_owner"></div>
+          </div>
+        </div>
         <div class="form-group"><label class="form-label">货况</label>
           <select class="form-input" id="fi-status"><option value="待售">待售</option><option value="已售">已售</option><option value="预售">预售</option><option value="缺货">缺货</option></select>
         </div>
-        <div class="form-group"><label class="form-label">入仓情况</label><input class="form-input" type="text" id="fi-warehouse_status" placeholder="e.g. 信杰"></div>
-        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fi-notes" rows="2" placeholder="备注信息..."></textarea></div>
+        <div class="form-group">
+          <label class="form-label">入仓情况</label>
+          <div class="cb-wrap" id="cb-wrap-warehouse_status">
+            <input class="cb-input form-input" type="text" id="fi-warehouse_status" placeholder="如 信杰" autocomplete="off">
+            <span class="cb-arrow" data-cb="warehouse_status">▾</span>
+            <div class="cb-panel" id="cb-panel-warehouse_status"></div>
+          </div>
+        </div>
+        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fi-notes" rows="2" placeholder="备注信息…"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="inv-modal-cancel">CANCEL</button>
-      <button class="btn btn-primary" id="inv-modal-save">SAVE ENTRY</button>
+      <button class="btn btn-secondary" id="inv-modal-cancel">取消</button>
+      <button class="btn btn-primary" id="inv-modal-save">保存</button>
     </div>
   </div>
 </div>
 
-<!-- SEL MODAL -->
+<!-- 卖出弹窗（从库存行） -->
 <div class="modal-overlay" id="sell-modal">
   <div class="modal">
-    <div class="modal-header"><div class="modal-title orange">RECORD SALE</div><button class="modal-close" id="sell-modal-close">✕</button></div>
+    <div class="modal-header"><div class="modal-title orange">记录销售</div><button class="modal-close" id="sell-modal-close">✕</button></div>
     <div class="modal-body">
       <div class="inv-info-box" id="sell-info"></div>
       <div class="form-grid">
         <div class="form-group"><label class="form-label">销售日期 *</label><input class="form-input" type="date" id="fs-sale_date"></div>
-        <div class="form-group"><label class="form-label">销售数量 * (库存: <span id="fs-stock-display">0</span>)</label><input class="form-input" type="number" id="fs-quantity" placeholder="0" min="1"></div>
-        <div class="form-group"><label class="form-label">售价 (单价) *</label><input class="form-input" type="number" step="0.01" id="fs-sale_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">成本单价 (auto)</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" readonly style="color:var(--text2)"></div>
-        <div class="form-group"><label class="form-label">销售总额 (auto)</label><input class="form-input" type="number" id="fs-sale_total" readonly style="color:var(--accent3)"></div>
-        <div class="form-group"><label class="form-label">利润 (auto)</label><input class="form-input" type="number" id="fs-profit" readonly style="color:var(--green)"></div>
-        <div class="form-group"><label class="form-label">买家</label><input class="form-input" type="text" id="fs-buyer" placeholder="买家名称"></div>
-        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fs-notes" rows="2" placeholder="备注..."></textarea></div>
+        <div class="form-group"><label class="form-label">销售数量 *（当前库存：<span id="fs-stock-display">0</span>）</label><input class="form-input" type="number" id="fs-quantity" placeholder="0" min="1"></div>
+        <div class="form-group"><label class="form-label">售价（单价）*</label><input class="form-input" type="number" step="0.01" id="fs-sale_price" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">成本单价（自动）</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" readonly style="background:var(--surface2)"></div>
+        <div class="form-group"><label class="form-label">销售总额（自动）</label><input class="form-input" type="number" id="fs-sale_total" readonly style="color:var(--accent3);background:var(--surface2)"></div>
+        <div class="form-group"><label class="form-label">利润（自动）</label><input class="form-input" type="number" id="fs-profit" readonly style="color:var(--green);background:var(--surface2)"></div>
+        <div class="form-group">
+          <label class="form-label">买家</label>
+          <div class="cb-wrap" id="cb-wrap-fs-buyer">
+            <input class="cb-input form-input" type="text" id="fs-buyer" placeholder="买家名称" autocomplete="off">
+            <span class="cb-arrow" data-cb="fs-buyer">▾</span>
+            <div class="cb-panel" id="cb-panel-fs-buyer"></div>
+          </div>
+        </div>
+        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fs-notes" rows="2" placeholder="备注…"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="sell-modal-cancel">CANCEL</button>
-      <button class="btn btn-sales" id="sell-modal-save">CONFIRM SALE</button>
+      <button class="btn btn-secondary" id="sell-modal-cancel">取消</button>
+      <button class="btn btn-sales" id="sell-modal-save">确认销售</button>
     </div>
   </div>
 </div>
 
-<!-- SALE MODAL -->
+<!-- 独立销售弹窗 -->
 <div class="modal-overlay" id="sale-modal">
   <div class="modal">
-    <div class="modal-header"><div class="modal-title orange" id="sale-modal-title">RECORD SALE</div><button class="modal-close" id="sale-modal-close">✕</button></div>
+    <div class="modal-header"><div class="modal-title orange" id="sale-modal-title">新增销售</div><button class="modal-close" id="sale-modal-close">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-group"><label class="form-label">销售日期 *</label><input class="form-input" type="date" id="fsa-sale_date"></div>
-        <div class="form-group"><label class="form-label">规格</label><input class="form-input" type="text" id="fsa-spec" placeholder="e.g. EMMC 8G"></div>
-        <div class="form-group"><label class="form-label">料号</label><input class="form-input" type="text" id="fsa-part_number" placeholder="e.g. KLM8G..."></div>
+        <div class="form-group">
+          <label class="form-label">规格</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-spec" placeholder="如 EMMC 8G" autocomplete="off"><span class="cb-arrow" data-cb="fsa-spec">▾</span><div class="cb-panel" id="cb-panel-fsa-spec"></div></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">料号</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-part_number" placeholder="如 KLM8G…" autocomplete="off"><span class="cb-arrow" data-cb="fsa-part_number">▾</span><div class="cb-panel" id="cb-panel-fsa-part_number"></div></div>
+        </div>
         <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fsa-quantity" placeholder="0"></div>
         <div class="form-group"><label class="form-label">销售单价 *</label><input class="form-input" type="number" step="0.01" id="fsa-sale_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">成本单价</label><input class="form-input" type="number" step="0.01" id="fsa-cost_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">销售总额 (auto)</label><input class="form-input" type="number" id="fsa-sale_total" readonly style="color:var(--accent3)"></div>
-        <div class="form-group"><label class="form-label">利润 (auto)</label><input class="form-input" type="number" id="fsa-profit" readonly style="color:var(--green)"></div>
-        <div class="form-group"><label class="form-label">买家</label><input class="form-input" type="text" id="fsa-buyer" placeholder="买家名称"></div>
-        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fsa-notes" rows="2" placeholder="备注..."></textarea></div>
+        <div class="form-group"><label class="form-label">销售总额（自动）</label><input class="form-input" type="number" id="fsa-sale_total" readonly style="color:var(--accent3);background:var(--surface2)"></div>
+        <div class="form-group"><label class="form-label">利润（自动）</label><input class="form-input" type="number" id="fsa-profit" readonly style="color:var(--green);background:var(--surface2)"></div>
+        <div class="form-group">
+          <label class="form-label">买家</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-buyer" placeholder="买家名称" autocomplete="off"><span class="cb-arrow" data-cb="fsa-buyer">▾</span><div class="cb-panel" id="cb-panel-fsa-buyer"></div></div>
+        </div>
+        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fsa-notes" rows="2" placeholder="备注…"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" id="sale-modal-cancel">CANCEL</button>
-      <button class="btn btn-sales" id="sale-modal-save">SAVE SALE</button>
+      <button class="btn btn-secondary" id="sale-modal-cancel">取消</button>
+      <button class="btn btn-sales" id="sale-modal-save">保存</button>
     </div>
   </div>
 </div>
@@ -401,398 +478,410 @@ CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);</p
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-//  SUPABASE REST API — plain fetch(), no SDK needed
-//  Supabase exposes a PostgREST endpoint at:
-//  {PROJECT_URL}/rest/v1/{table}
-// ═══════════════════════════════════════════════════════
-
-// ── HARDCODED CREDENTIALS ─────────────────────────────
-// Replace these with your actual Supabase Project URL and anon key.
-// The anon key is safe to include here — it is designed to be public.
+// ════════════════════════════════════════
+//  Supabase REST（无需 SDK）
+// ════════════════════════════════════════
 const SUPABASE_URL = 'https://jpbzuzzgbgepsyqxnydv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpwYnp1enpnYmdlcHN5cXhueWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5MDY4OTAsImV4cCI6MjA4NzQ4Mjg5MH0.HnB7m8kEpSFeSxdiZjQ0uzAI20UHWwQNzY-0_22xwNA';
+let API_URL = SUPABASE_URL.replace(/\/$/,'');
+let API_KEY  = SUPABASE_KEY;
 
-let API_URL = SUPABASE_URL.replace(/\/$/, '');
-let API_KEY = SUPABASE_KEY;
+const sbH = () => ({'apikey':API_KEY,'Authorization':'Bearer '+API_KEY,'Content-Type':'application/json','Prefer':'return=representation'});
+async function sbSelect(t){ const r=await fetch(`${API_URL}/rest/v1/${t}?select=*&order=created_at.asc`,{headers:sbH()}); if(!r.ok)throw new Error((await r.json()).message||r.statusText); return r.json(); }
+async function sbInsert(t,d){ const r=await fetch(`${API_URL}/rest/v1/${t}`,{method:'POST',headers:sbH(),body:JSON.stringify(d)}); if(!r.ok)throw new Error((await r.json()).message||r.statusText); return r.json(); }
+async function sbUpdate(t,id,d){ const r=await fetch(`${API_URL}/rest/v1/${t}?id=eq.${id}`,{method:'PATCH',headers:sbH(),body:JSON.stringify(d)}); if(!r.ok)throw new Error((await r.json()).message||r.statusText); return r.json(); }
+async function sbDelete(t,id){ const r=await fetch(`${API_URL}/rest/v1/${t}?id=eq.${id}`,{method:'DELETE',headers:sbH()}); if(!r.ok)throw new Error((await r.json()).message||r.statusText); }
 
-function sbHeaders(extra) {
-  return {
-    'apikey': API_KEY,
-    'Authorization': 'Bearer ' + API_KEY,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-    ...extra
-  };
-}
+// ════════════════════════════════════════
+//  状态
+// ════════════════════════════════════════
+let invData=[], salesData=[];
+let invEditId=null, saleEditId=null, sellInvRow=null;
+let invSortCol='entry_date', invSortAsc=false;
+let salesSortCol='sale_date', salesSortAsc=false;
 
-async function sbSelect(table) {
-  const res = await fetch(`${API_URL}/rest/v1/${table}?select=*&order=created_at.asc`, { headers: sbHeaders() });
-  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
-  return res.json();
-}
-
-async function sbInsert(table, row) {
-  const res = await fetch(`${API_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: sbHeaders(),
-    body: JSON.stringify(row)
-  });
-  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
-  return res.json();
-}
-
-async function sbUpdate(table, id, row) {
-  const res = await fetch(`${API_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'PATCH',
-    headers: sbHeaders(),
-    body: JSON.stringify(row)
-  });
-  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
-  return res.json();
-}
-
-async function sbDelete(table, id) {
-  const res = await fetch(`${API_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'DELETE',
-    headers: sbHeaders()
-  });
-  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
-}
-
-// ═══════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════
-let invData = [], salesData = [];
-let invEditId = null, saleEditId = null, sellInvRow = null;
-let invSortCol = 'entry_date', invSortAsc = false;
-let salesSortCol = 'sale_date', salesSortAsc = false;
-
-// ── HELPERS ────────────────────────────────────────────
-const $ = id => document.getElementById(id);
+const $  = id => document.getElementById(id);
 const today = () => new Date().toISOString().split('T')[0];
-const fmt = n => n != null ? Number(n).toLocaleString('zh-CN') : '';
-const fmtM = n => n != null ? Number(n).toLocaleString('zh-CN', {minimumFractionDigits:2}) : '';
-const statusTag = s => {
-  const m = {'待售':'tag-green','已售':'tag-gray','预售':'tag-orange','缺货':'tag-red'};
-  return `<span class="tag ${m[s]||'tag-gray'}">${s||''}</span>`;
-};
-function showNotif(msg, err=false) {
-  const el = $('notif');
-  el.textContent = msg;
-  el.style.borderColor = err ? 'var(--red)' : 'var(--accent)';
-  el.style.color = err ? 'var(--red)' : 'var(--accent)';
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2800);
+const fmt  = n => n!=null?Number(n).toLocaleString('zh-CN'):'';
+const fmtM = n => n!=null?Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2}):'';
+const statusTag = s => { const m={'待售':'tag-green','已售':'tag-gray','预售':'tag-orange','缺货':'tag-red'}; return `<span class="tag ${m[s]||'tag-gray'}">${s||''}</span>`; };
+
+function showNotif(msg,err=false){
+  const el=$('notif'); el.textContent=msg;
+  el.style.borderColor=err?'var(--red)':'var(--accent)';
+  el.style.color=err?'var(--red)':'var(--accent)';
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800);
 }
-function openModal(id) { $(id).classList.add('open'); }
-function closeModal(id) { $(id).classList.remove('open'); }
+const openModal  = id => $(id).classList.add('open');
+const closeModal = id => $(id).classList.remove('open');
 
-// ── DATES ──────────────────────────────────────────────
-$('inv-date').textContent = new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'}) + '库存表';
-$('sales-date').textContent = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long'}) + '销售记录';
+$('inv-date').textContent   = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})+' 库存表';
+$('sales-date').textContent = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long'})+' 销售记录';
 
-// ═══════════════════════════════════════════════════════
-//  CONNECTION — auto-connects using hardcoded credentials
-// ═══════════════════════════════════════════════════════
-function showApp() {
-  $('config-screen').classList.add('hidden');
-  loadInventory();
-  loadSales();
-}
-
-if (API_URL && API_URL !== 'YOUR_SUPABASE_URL' && API_KEY && API_KEY !== 'YOUR_SUPABASE_ANON_KEY') {
-  // Credentials are set — connect automatically, no config screen needed
-  sbSelect('inventory')
-    .then(() => showApp())
-    .catch(e => {
-      $('cfg-err').textContent = 'Auto-connect failed: ' + e.message;
-      $('cfg-err').style.display = 'block';
-    });
-} else {
-  // Credentials not set — show config screen as fallback
-}
-
-$('copy-sql-btn').addEventListener('click', () => {
-  navigator.clipboard.writeText($('setup-sql').textContent);
-  $('copy-sql-btn').textContent = 'COPIED!';
-  setTimeout(() => $('copy-sql-btn').textContent = 'COPY', 2000);
+// ════════════════════════════════════════
+//  主题切换
+// ════════════════════════════════════════
+if(localStorage.getItem('ssd_theme')==='light'){ document.body.classList.add('light'); $('theme-btn').textContent='☀️'; }
+$('theme-btn').addEventListener('click',()=>{
+  const light=document.body.classList.toggle('light');
+  $('theme-btn').textContent=light?'☀️':'🌙';
+  localStorage.setItem('ssd_theme',light?'light':'dark');
 });
 
-$('connect-btn').addEventListener('click', async () => {
-  const url = $('cfg-url').value.trim().replace(/\/$/, '');
-  const key = $('cfg-key').value.trim();
-  const errEl = $('cfg-err');
-  errEl.style.display = 'none';
-  if (!url || !key) { errEl.textContent = 'Both fields are required.'; errEl.style.display = 'block'; return; }
-  $('connect-btn').disabled = true;
-  $('connect-btn').textContent = 'CONNECTING...';
-  try {
-    API_URL = url; API_KEY = key;
-    await sbSelect('inventory');
-    showApp();
-  } catch(e) {
-    errEl.textContent = 'Connection failed: ' + e.message;
-    errEl.style.display = 'block';
-    $('connect-btn').disabled = false;
-    $('connect-btn').textContent = 'CONNECT DATABASE →';
+// ════════════════════════════════════════
+//  连接
+// ════════════════════════════════════════
+function showApp(){ $('config-screen').classList.add('hidden'); loadInventory(); loadSales(); }
+
+sbSelect('inventory').then(()=>showApp()).catch(e=>{
+  $('cfg-err').textContent='连接失败：'+e.message;
+  $('cfg-err').style.display='block';
+  $('config-screen').classList.remove('hidden');
+});
+
+$('copy-sql-btn').addEventListener('click',()=>{ navigator.clipboard.writeText($('setup-sql').textContent); $('copy-sql-btn').textContent='已复制'; setTimeout(()=>$('copy-sql-btn').textContent='复制',2000); });
+$('connect-btn').addEventListener('click',async()=>{
+  const url=$('cfg-url').value.trim().replace(/\/$/,''),key=$('cfg-key').value.trim(),errEl=$('cfg-err');
+  errEl.style.display='none';
+  if(!url||!key){errEl.textContent='请填写所有字段';errEl.style.display='block';return;}
+  $('connect-btn').disabled=true;$('connect-btn').textContent='连接中…';
+  try{API_URL=url;API_KEY=key;await sbSelect('inventory');showApp();}
+  catch(e){errEl.textContent='连接失败：'+e.message;errEl.style.display='block';$('connect-btn').disabled=false;$('connect-btn').textContent='连接数据库 →';}
+});
+$('disconnect-btn').addEventListener('click',()=>{if(confirm('重新加载页面？'))location.reload();});
+
+// ════════════════════════════════════════
+//  标签页
+// ════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    $('page-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ════════════════════════════════════════
+//  Combobox（表单内可编辑下拉）
+// ════════════════════════════════════════
+// Generic combobox factory: inputEl, panelEl, optionsArray
+function initCB(inputEl, panelEl, getOpts) {
+  let focusIdx = -1;
+
+  function renderPanel(filter) {
+    const opts = getOpts().filter(o => !filter || o.toLowerCase().includes(filter.toLowerCase()));
+    if (!opts.length) { panelEl.classList.remove('open'); return; }
+    panelEl.innerHTML = opts.map((o,i) => `<div class="cb-option" data-val="${o}">${o}</div>`).join('');
+    panelEl.classList.add('open');
+    focusIdx = -1;
+    panelEl.querySelectorAll('.cb-option').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        inputEl.value = el.dataset.val;
+        inputEl.dispatchEvent(new Event('input'));
+        panelEl.classList.remove('open');
+        inputEl.classList.remove('open');
+      });
+    });
+  }
+
+  function openFull() { renderPanel(''); inputEl.classList.add('open'); }
+  function close()    { panelEl.classList.remove('open'); inputEl.classList.remove('open'); focusIdx = -1; }
+
+  inputEl.addEventListener('input',  () => { renderPanel(inputEl.value); inputEl.classList.toggle('open', panelEl.classList.contains('open')); });
+  inputEl.addEventListener('focus',  () => { if (getOpts().length) openFull(); });
+  inputEl.addEventListener('blur',   () => setTimeout(close, 150));
+  inputEl.addEventListener('keydown', e => {
+    const items = panelEl.querySelectorAll('.cb-option');
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusIdx = Math.min(focusIdx+1, items.length-1); items.forEach((el,i)=>el.classList.toggle('focused',i===focusIdx)); items[focusIdx]?.scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusIdx = Math.max(focusIdx-1,0); items.forEach((el,i)=>el.classList.toggle('focused',i===focusIdx)); items[focusIdx]?.scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'Enter' && focusIdx >= 0) { e.preventDefault(); inputEl.value=items[focusIdx].dataset.val; inputEl.dispatchEvent(new Event('input')); close(); }
+    else if (e.key === 'Escape') close();
+  });
+
+  // arrow click
+  const arrow = inputEl.parentElement.querySelector('.cb-arrow');
+  if (arrow) arrow.addEventListener('mousedown', e => { e.preventDefault(); panelEl.classList.contains('open') ? close() : openFull(); inputEl.focus(); });
+}
+
+// combobox data sources (keyed by field name)
+const cbSources = {
+  'spec':             () => [...new Set(invData.map(r=>r.spec).filter(Boolean))].sort(),
+  'part_number':      () => [...new Set(invData.map(r=>r.part_number).filter(Boolean))].sort(),
+  'min_package':      () => [...new Set(invData.map(r=>r.min_package).filter(Boolean))].sort(),
+  'cargo_owner':      () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(),
+  'warehouse_status': () => [...new Set(invData.map(r=>r.warehouse_status).filter(Boolean))].sort(),
+  'buyer':            () => [...new Set(salesData.map(r=>r.buyer).filter(Boolean))].sort(),
+};
+
+// Init all comboboxes once DOM ready
+function initAllCB() {
+  // inv-modal comboboxes (fi- prefix, panel id = cb-panel-{fieldname})
+  [['fi-spec','spec'],['fi-part_number','part_number'],['fi-min_package','min_package'],
+   ['fi-cargo_owner','cargo_owner'],['fi-warehouse_status','warehouse_status']].forEach(([inputId, src]) => {
+    const inp = $(inputId), pan = $('cb-panel-'+src);
+    if (inp && pan) initCB(inp, pan, cbSources[src]);
+  });
+  // sell-modal buyer
+  const fsBuyer = $('fs-buyer'), fsBuyerPan = $('cb-panel-fs-buyer');
+  if (fsBuyer && fsBuyerPan) initCB(fsBuyer, fsBuyerPan, cbSources['buyer']);
+  // sale-modal comboboxes (fsa- prefix, panel id = cb-panel-fsa-{fieldname})
+  [['fsa-spec','spec'],['fsa-part_number','part_number'],['fsa-buyer','buyer']].forEach(([inputId, src]) => {
+    const inp = $(inputId), pan = $('cb-panel-'+inputId);
+    if (inp && pan) initCB(inp, pan, cbSources[src]);
+  });
+}
+initAllCB();
+
+// Legacy stub (no-op now, comboboxes pull live from invData/salesData)
+function refreshDL() {}
+
+// ════════════════════════════════════════
+//  Multi-select 规格 filter（工具栏）
+// ════════════════════════════════════════
+let selectedSpecs = new Set();
+
+const msBtn   = $('ms-spec-btn');
+const msPanel = $('ms-spec-panel');
+const msLabel = $('ms-spec-label');
+
+msBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = msPanel.classList.toggle('open');
+  msBtn.classList.toggle('active', open);
+});
+document.addEventListener('click', e => {
+  if (!$('ms-spec-wrap').contains(e.target)) {
+    msPanel.classList.remove('open');
+    msBtn.classList.remove('active');
   }
 });
 
-$('disconnect-btn').addEventListener('click', () => {
-  if (!confirm('Reload page?')) return;
-  location.reload();
-});
+function buildMsPanel() {
+  const specs = [...new Set(invData.map(r=>r.spec).filter(Boolean))].sort();
+  msPanel.innerHTML = specs.map(s => `
+    <label class="ms-item">
+      <input type="checkbox" value="${s}" ${selectedSpecs.has(s)?'checked':''}>
+      <span>${s}</span>
+    </label>`).join('') +
+    `<div class="ms-footer" id="ms-clear-btn">清除筛选</div>`;
 
-// ═══════════════════════════════════════════════════════
-//  TABS
-// ═══════════════════════════════════════════════════════
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    $('page-' + tab.dataset.tab).classList.add('active');
+  msPanel.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.checked ? selectedSpecs.add(cb.value) : selectedSpecs.delete(cb.value);
+      updateMsLabel();
+      renderInventory();
+    });
   });
-});
-
-// ═══════════════════════════════════════════════════════
-//  INVENTORY
-// ═══════════════════════════════════════════════════════
-async function loadInventory() {
-  try {
-    invData = await sbSelect('inventory');
-    renderInventory(); refreshInvFilters(); updateInvStats();
-  } catch(e) { showNotif('Load error: ' + e.message, true); }
+  $('ms-clear-btn').addEventListener('click', () => {
+    selectedSpecs.clear();
+    buildMsPanel();
+    updateMsLabel();
+    renderInventory();
+  });
 }
 
-function calcGroupStats(rows) {
-  const groups = {};
-  rows.forEach(r => {
-    const key = r.spec || '';
-    if (!groups[key]) groups[key] = { totalQty: 0, totalCost: 0 };
-    const qty = r.quantity || 0;
-    const cost = parseFloat(r.unit_price) || 0;
-    groups[key].totalQty += qty;
-    groups[key].totalCost += qty * cost;
-  });
-  Object.keys(groups).forEach(k => {
-    const g = groups[k];
-    g.avgCost = g.totalQty > 0 ? g.totalCost / g.totalQty : 0;
-  });
-  return groups;
+function updateMsLabel() {
+  if (selectedSpecs.size === 0) {
+    msLabel.innerHTML = '全部规格';
+  } else if (selectedSpecs.size === 1) {
+    msLabel.innerHTML = `<span>${[...selectedSpecs][0]}</span>`;
+  } else {
+    msLabel.innerHTML = `规格 <span class="ms-badge">${selectedSpecs.size}</span>`;
+  }
 }
 
-function renderInventory() {
-  const search = $('inv-search').value.toLowerCase();
-  const specF = $('inv-filter-spec').value;
-  const statusF = $('inv-filter-status').value;
-  let rows = invData.filter(r =>
-    (!specF || r.spec === specF) && (!statusF || r.status === statusF) &&
-    (!search || ['spec','part_number','cargo_owner','notes'].some(f => (r[f]||'').toLowerCase().includes(search)))
+// ════════════════════════════════════════
+//  库存
+// ════════════════════════════════════════
+async function loadInventory(){
+  try{ invData=await sbSelect('inventory'); renderInventory(); refreshInvFilters(); updateInvStats(); refreshDL(); buildMsPanel(); }
+  catch(e){ showNotif('加载失败：'+e.message,true); }
+}
+
+function calcGroups(rows){
+  const g={};
+  rows.forEach(r=>{ const k=r.spec||''; if(!g[k])g[k]={tq:0,tc:0}; const q=r.quantity||0; g[k].tq+=q; g[k].tc+=q*(parseFloat(r.unit_price)||0); });
+  Object.keys(g).forEach(k=>{ g[k].avg=g[k].tq>0?g[k].tc/g[k].tq:0; });
+  return g;
+}
+
+function renderInventory(){
+  const search=$('inv-search').value.toLowerCase();
+  const statusF=$('inv-filter-status').value;
+  let rows=invData.filter(r=>
+    (selectedSpecs.size===0||selectedSpecs.has(r.spec))&&(!statusF||r.status===statusF)&&
+    (!search||['spec','part_number','cargo_owner','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))
   );
-  // Sort: primary by spec so groups stay together, secondary by user col
-  rows.sort((a,b) => {
-    if ((a.spec||'') < (b.spec||'')) return -1;
-    if ((a.spec||'') > (b.spec||'')) return 1;
-    let av = a[invSortCol]??'', bv = b[invSortCol]??'';
-    return invSortAsc ? (av>bv?1:-1) : (av<bv?1:-1);
+  rows.sort((a,b)=>{
+    if((a.spec||'')<(b.spec||''))return -1; if((a.spec||'')>(b.spec||''))return 1;
+    let av=a[invSortCol]??'',bv=b[invSortCol]??'';
+    return invSortAsc?(av>bv?1:-1):(av<bv?1:-1);
   });
-  $('inv-empty').style.display = rows.length ? 'none' : 'block';
-
-  // Compute per-spec totals from ALL invData (not just filtered) so stats are always accurate
-  const groups = calcGroupStats(invData);
-
-  let html = '';
-  let i = 0;
-  while (i < rows.length) {
-    const spec = rows[i].spec || '';
-    let j = i;
-    while (j < rows.length && (rows[j].spec||'') === spec) j++;
-    const groupSize = j - i;
-    const grp = groups[spec] || { avgCost: 0, totalQty: 0 };
-    for (let k = i; k < j; k++) {
-      const r = rows[k];
-      const isFirst = (k === i);
-      html += `<tr>
+  $('inv-empty').style.display=rows.length?'none':'block';
+  const grps=calcGroups(invData);
+  let html='',i=0;
+  while(i<rows.length){
+    const spec=rows[i].spec||''; let j=i;
+    while(j<rows.length&&(rows[j].spec||'')===spec)j++;
+    const gs=j-i, grp=grps[spec]||{avg:0,tq:0};
+    for(let k=i;k<j;k++){
+      const r=rows[k],first=(k===i);
+      html+=`<tr>
         <td class="mono">${r.entry_date||''}</td>
         <td>${r.spec||''}</td>
         <td class="mono" style="font-size:10px">${r.part_number||''}</td>
         <td class="mono">${fmt(r.quantity)}</td>
         <td class="mono">${r.unit_price!=null?(+r.unit_price).toFixed(2):''}</td>
         <td class="mono">${r.linda_payment!=null?fmtM(r.linda_payment):''}</td>
-        ${isFirst
-          ? `<td class="mono" rowspan="${groupSize}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avgCost.toFixed(2)}</td>
-             <td class="mono" rowspan="${groupSize}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.totalQty)}</td>`
-          : ''}
+        ${first?`<td class="mono" rowspan="${gs}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avg.toFixed(2)}</td>
+                 <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
         <td>${statusTag(r.status)}</td>
         <td>${r.warehouse_status||''}</td>
-        <td style="max-width:130px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
-        <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 14px">
-          <button class="action-btn btn-sel" data-action="sel" data-id="${r.id}">SEL</button>
-          <button class="action-btn btn-edit" data-action="inv-edit" data-id="${r.id}">EDIT</button>
-          <button class="action-btn btn-del" data-action="inv-del" data-id="${r.id}">DEL</button>
+        <td style="max-width:120px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
+        <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 12px">
+          <button class="action-btn btn-sel" data-action="sel" data-id="${r.id}">卖出</button>
+          <button class="action-btn btn-edit" data-action="inv-edit" data-id="${r.id}">编辑</button>
+          <button class="action-btn btn-del" data-action="inv-del" data-id="${r.id}">删除</button>
         </td>
       </tr>`;
     }
-    i = j;
+    i=j;
   }
-  $('inv-tbody').innerHTML = html;
-  $('inv-foot-qty').textContent = fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
-  $('inv-foot-linda').textContent = fmtM(rows.reduce((s,r)=>s+(+r.linda_payment||0),0));
-  document.querySelectorAll('[id^="is-"]').forEach(el => el.textContent='');
-  const si = $('is-'+invSortCol); if(si) si.textContent = invSortAsc?' ▲':' ▼';
+  $('inv-tbody').innerHTML=html;
+  $('inv-foot-qty').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
+  $('inv-foot-linda').textContent=fmtM(rows.reduce((s,r)=>s+(+r.linda_payment||0),0));
+  document.querySelectorAll('[id^="is-"]').forEach(el=>el.textContent='');
+  const si=$('is-'+invSortCol); if(si)si.textContent=invSortAsc?' ▲':' ▼';
 }
 
-function updateInvStats() {
-  $('stat-entries').textContent = invData.length;
-  $('stat-qty').textContent = fmt(invData.reduce((s,r)=>s+(r.quantity||0),0));
-  $('stat-total').textContent = '¥'+fmtM(invData.reduce((s,r)=>s+(+r.linda_payment||0),0));
-  $('stat-skus').textContent = new Set(invData.map(r=>r.part_number)).size;
+function updateInvStats(){
+  $('stat-entries').textContent=invData.length;
+  $('stat-qty').textContent=fmt(invData.reduce((s,r)=>s+(r.quantity||0),0));
+  $('stat-total').textContent='¥'+fmtM(invData.reduce((s,r)=>s+(+r.linda_payment||0),0));
+  $('stat-skus').textContent=new Set(invData.map(r=>r.spec)).size;
 }
 
-function refreshInvFilters() {
-  const specSel = $('inv-filter-spec'), cur = specSel.value;
-  specSel.innerHTML = '<option value="">All 规格</option>' +
-    [...new Set(invData.map(r=>r.spec).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
-  const stSel = $('inv-filter-status'), curS = stSel.value;
-  stSel.innerHTML = '<option value="">All 货况</option>' +
-    [...new Set(invData.map(r=>r.status).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===curS?' selected':''}>${s}</option>`).join('');
+function refreshInvFilters(){
+  const st=$('inv-filter-status'),cst=st.value;
+  st.innerHTML='<option value="">全部货况</option>'+[...new Set(invData.map(r=>r.status).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===cst?' selected':''}>${s}</option>`).join('');
 }
 
-$('inv-thead').addEventListener('click', e => {
-  const th = e.target.closest('th.sortable'); if(!th) return;
-  invSortCol===th.dataset.col ? invSortAsc=!invSortAsc : (invSortCol=th.dataset.col, invSortAsc=true);
-  renderInventory();
-});
-$('inv-search').addEventListener('input', renderInventory);
-$('inv-filter-spec').addEventListener('change', renderInventory);
-$('inv-filter-status').addEventListener('change', renderInventory);
+$('inv-thead').addEventListener('click',e=>{ const th=e.target.closest('th.sortable');if(!th)return; invSortCol===th.dataset.col?invSortAsc=!invSortAsc:(invSortCol=th.dataset.col,invSortAsc=true); renderInventory(); });
+$('inv-search').addEventListener('input',renderInventory);
+$('inv-filter-status').addEventListener('change',renderInventory);
 
-$('inv-tbody').addEventListener('click', async e => {
-  const btn = e.target.closest('[data-action]'); if(!btn) return;
-  const id = +btn.dataset.id, action = btn.dataset.action;
-  if (action==='sel') openSellModal(id);
-  if (action==='inv-edit') openInvModal(id);
-  if (action==='inv-del') {
-    if (!confirm('Delete this entry?')) return;
-    try { await sbDelete('inventory', id); showNotif('Deleted'); await loadInventory(); }
-    catch(e) { showNotif('Error: '+e.message, true); }
+$('inv-tbody').addEventListener('click',async e=>{
+  const btn=e.target.closest('[data-action]');if(!btn)return;
+  const id=+btn.dataset.id,action=btn.dataset.action;
+  if(action==='sel')openSellModal(id);
+  if(action==='inv-edit')openInvModal(id);
+  if(action==='inv-del'){
+    if(!confirm('确认删除该条记录？'))return;
+    try{ await sbDelete('inventory',id); showNotif('已删除'); await loadInventory(); }
+    catch(e){ showNotif('错误：'+e.message,true); }
   }
 });
+$('inv-export-btn').addEventListener('click',()=>exportCSV(invData,'库存'));
 
-$('inv-export-btn').addEventListener('click', () => exportCSV(invData, 'inventory'));
+// ── 入库弹窗 ─────────────────────────────
+$('inv-add-btn').addEventListener('click',()=>openInvModal(null));
+['inv-modal-close','inv-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('inv-modal')));
+$('inv-modal').addEventListener('click',e=>{ if(e.target===$('inv-modal'))closeModal('inv-modal'); });
 
-// ── INV MODAL ──────────────────────────────────────────
-$('inv-add-btn').addEventListener('click', () => openInvModal(null));
-['inv-modal-close','inv-modal-cancel'].forEach(id => $(id).addEventListener('click', () => closeModal('inv-modal')));
-$('inv-modal').addEventListener('click', e => { if(e.target===$('inv-modal')) closeModal('inv-modal'); });
+// Linda 付款金额自动计算 = 数量 × 单价
+function calcLinda(){
+  const q=parseFloat($('fi-quantity').value)||0, p=parseFloat($('fi-unit_price').value)||0;
+  $('fi-linda_payment').value=q&&p?(q*p).toFixed(2):'';
+}
+['fi-quantity','fi-unit_price'].forEach(id=>$(id).addEventListener('input',calcLinda));
 
-function openInvModal(id) {
-  invEditId = id;
-  $('inv-modal-title').textContent = id ? 'EDIT ENTRY' : 'ADD NEW ENTRY';
-  const fields = ['entry_date','spec','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','status','warehouse_status','notes'];
-  if (id) {
-    const r = invData.find(x=>x.id===id);
-    fields.forEach(f => { const el=$('fi-'+f); if(el) el.value=r[f]??''; });
-  } else {
-    fields.forEach(f => { const el=$('fi-'+f); if(el) el.value=''; });
+function openInvModal(id){
+  invEditId=id;
+  $('inv-modal-title').textContent=id?'编辑入库记录':'新增入库';
+  const fields=['entry_date','spec','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','status','warehouse_status','notes'];
+  if(id){
+    const r=invData.find(x=>x.id===id);
+    fields.forEach(f=>{ const el=$('fi-'+f);if(el)el.value=r[f]??''; });
+  }else{
+    fields.forEach(f=>{ const el=$('fi-'+f);if(el)el.value=''; });
     $('fi-entry_date').value=today(); $('fi-status').value='待售';
     $('fi-cargo_owner').value='LINDA'; $('fi-min_package').value='1120/4480/箱';
   }
   openModal('inv-modal');
 }
 
-$('inv-modal-save').addEventListener('click', async () => {
-  const g = f => $('fi-'+f).value.trim();
-  if (!g('entry_date')||!g('spec')||!g('part_number')) { showNotif('Fill required fields (*)', true); return; }
-  const payload = {
-    entry_date:g('entry_date'), spec:g('spec'), part_number:g('part_number'),
-    quantity:parseInt(g('quantity'))||0, unit_price:parseFloat(g('unit_price'))||null,
-    linda_payment:parseFloat(g('linda_payment'))||null, min_package:g('min_package')||null,
-    cargo_owner:g('cargo_owner')||null, status:g('status')||'待售',
-    warehouse_status:g('warehouse_status')||null, notes:g('notes')||null,
-  };
-  try {
-    invEditId ? await sbUpdate('inventory', invEditId, payload) : await sbInsert('inventory', payload);
-    showNotif(invEditId ? 'Entry updated ✓' : 'Entry added ✓');
+$('inv-modal-save').addEventListener('click',async()=>{
+  const g=f=>$('fi-'+f).value.trim();
+  if(!g('entry_date')||!g('spec')||!g('part_number')){ showNotif('请填写必填项（*）',true);return; }
+  const qty=parseInt(g('quantity'))||0, price=parseFloat(g('unit_price'))||null;
+  const linda=qty&&price?qty*price:(parseFloat(g('linda_payment'))||null);
+  const payload={entry_date:g('entry_date'),spec:g('spec'),part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,status:g('status')||'待售',warehouse_status:g('warehouse_status')||null,notes:g('notes')||null};
+  try{
+    invEditId?await sbUpdate('inventory',invEditId,payload):await sbInsert('inventory',payload);
+    showNotif(invEditId?'已更新 ✓':'已添加 ✓');
     closeModal('inv-modal'); await loadInventory();
-  } catch(e) { showNotif('Error: '+e.message, true); }
+  }catch(e){ showNotif('错误：'+e.message,true); }
 });
 
-// ── SEL MODAL ──────────────────────────────────────────
-['sell-modal-close','sell-modal-cancel'].forEach(id => $(id).addEventListener('click', () => closeModal('sell-modal')));
-$('sell-modal').addEventListener('click', e => { if(e.target===$('sell-modal')) closeModal('sell-modal'); });
+// ── 卖出弹窗 ─────────────────────────────
+['sell-modal-close','sell-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('sell-modal')));
+$('sell-modal').addEventListener('click',e=>{ if(e.target===$('sell-modal'))closeModal('sell-modal'); });
 
-function openSellModal(invId) {
-  sellInvRow = invData.find(r=>r.id===invId); if(!sellInvRow) return;
-  const unitCost = parseFloat(sellInvRow.unit_price) || 0;
-  const stock = sellInvRow.quantity || 0;
-  $('sell-info').innerHTML =
-    `规格: <b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 料号: <b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>` +
-    `入库日期: <b style="color:var(--text)">${sellInvRow.entry_date||''}</b> &nbsp;|&nbsp; 单价: <b style="color:var(--text2)">${unitCost.toFixed(2)}</b> &nbsp;|&nbsp; 当前库存: <b style="color:var(--accent)">${fmt(stock)}</b>`;
-  $('fs-stock-display').textContent = fmt(stock);
-  ['sale_date','quantity','sale_price','sale_total','profit','buyer','notes'].forEach(f=>{const el=$('fs-'+f);if(el)el.value='';});
-  $('fs-sale_date').value = today();
-  $('fs-cost_price').value = unitCost.toFixed(2);
+function openSellModal(invId){
+  sellInvRow=invData.find(r=>r.id===invId);if(!sellInvRow)return;
+  const cost=parseFloat(sellInvRow.unit_price)||0, stock=sellInvRow.quantity||0;
+  $('sell-info').innerHTML=
+    `规格：<b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>`+
+    `入库日期：<b style="color:var(--text)">${sellInvRow.entry_date||''}</b> &nbsp;|&nbsp; 单价：<b style="color:var(--text2)">${cost.toFixed(2)}</b> &nbsp;|&nbsp; 当前库存：<b style="color:var(--accent)">${fmt(stock)}</b>`;
+  $('fs-stock-display').textContent=fmt(stock);
+  ['sale_date','quantity','sale_price','sale_total','profit','buyer','notes'].forEach(f=>{ const el=$('fs-'+f);if(el)el.value=''; });
+  $('fs-sale_date').value=today(); $('fs-cost_price').value=cost.toFixed(2);
   openModal('sell-modal');
 }
 
-function calcSell() {
-  const qty=parseFloat($('fs-quantity').value)||0, sp=parseFloat($('fs-sale_price').value)||0, cp=parseFloat($('fs-cost_price').value)||0;
-  $('fs-sale_total').value=qty&&sp?(qty*sp).toFixed(2):'';
-  $('fs-profit').value=qty&&sp?(qty*(sp-cp)).toFixed(2):'';
+function calcSell(){
+  const q=parseFloat($('fs-quantity').value)||0,sp=parseFloat($('fs-sale_price').value)||0,cp=parseFloat($('fs-cost_price').value)||0;
+  $('fs-sale_total').value=q&&sp?(q*sp).toFixed(2):'';
+  $('fs-profit').value=q&&sp?(q*(sp-cp)).toFixed(2):'';
 }
 ['fs-quantity','fs-sale_price'].forEach(id=>$(id).addEventListener('input',calcSell));
 
-$('sell-modal-save').addEventListener('click', async () => {
+$('sell-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fs-'+f).value.trim();
-  const qty=parseInt(g('quantity'))||0, sp=parseFloat(g('sale_price'));
-  if (!g('sale_date')||!qty||!sp){showNotif('Fill required fields',true);return;}
-  const stock = sellInvRow.quantity || 0;
-  if (qty > stock){showNotif(`库存不足！当前库存: ${fmt(stock)}`,true);return;}
-  const cp=parseFloat(g('cost_price'))||null;
-  const newQty = stock - qty;
-  try {
-    // 1. Deduct from inventory
-    await sbUpdate('inventory', sellInvRow.id, { quantity: newQty });
-    // 2. Record sale
-    await sbInsert('sales',{
-      sale_date:g('sale_date'), quantity:qty, sale_price:sp,
-      sale_total:qty*sp, cost_price:cp,
-      profit:cp!=null?qty*(sp-cp):null,
-      spec:sellInvRow.spec, part_number:sellInvRow.part_number,
-      buyer:g('buyer')||null, notes:g('notes')||null
-    });
-    showNotif(`已售出 ${fmt(qty)} 件，库存剩余 ${fmt(newQty)} ✓`);
+  const qty=parseInt(g('quantity'))||0,sp=parseFloat(g('sale_price'));
+  if(!g('sale_date')||!qty||!sp){ showNotif('请填写必填项',true);return; }
+  const stock=sellInvRow.quantity||0;
+  if(qty>stock){ showNotif(`库存不足！当前库存：${fmt(stock)}`,true);return; }
+  const cp=parseFloat(g('cost_price'))||null, newQty=stock-qty;
+  try{
+    await sbUpdate('inventory',sellInvRow.id,{quantity:newQty});
+    await sbInsert('sales',{sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,buyer:g('buyer')||null,notes:g('notes')||null});
+    showNotif(`已售出 ${fmt(qty)} 件，剩余库存 ${fmt(newQty)} ✓`);
     closeModal('sell-modal');
-    // Reload both tables
-    await loadInventory();
-    await loadSales();
-    // Switch to sales tab
+    await loadInventory(); await loadSales();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.tab')[1].classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     $('page-sales').classList.add('active');
-  } catch(e){showNotif('Error: '+e.message,true);}
+  }catch(e){ showNotif('错误：'+e.message,true); }
 });
 
-// ═══════════════════════════════════════════════════════
-//  SALES
-// ═══════════════════════════════════════════════════════
-async function loadSales() {
-  try {
-    salesData = await sbSelect('sales');
-    renderSales(); refreshSalesFilters(); updateSalesStats();
-  } catch(e) { showNotif('Load error: '+e.message, true); }
+// ════════════════════════════════════════
+//  销售记录
+// ════════════════════════════════════════
+async function loadSales(){
+  try{ salesData=await sbSelect('sales'); renderSales(); refreshSalesFilters(); updateSalesStats(); refreshDL(); }
+  catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
-function renderSales() {
+function renderSales(){
   const search=$('sales-search').value.toLowerCase(), specF=$('sales-filter-spec').value;
   let rows=salesData.filter(r=>(!specF||r.spec===specF)&&(!search||['spec','part_number','buyer','notes'].some(f=>(r[f]||'').toLowerCase().includes(search))));
-  rows.sort((a,b)=>{let av=a[salesSortCol]??'',bv=b[salesSortCol]??'';return salesSortAsc?(av>bv?1:-1):(av<bv?1:-1);});
+  rows.sort((a,b)=>{ let av=a[salesSortCol]??'',bv=b[salesSortCol]??''; return salesSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sales-empty').style.display=rows.length?'none':'block';
   $('sales-tbody').innerHTML=rows.map(r=>{
     const margin=r.sale_total&&r.profit!=null?(+r.profit/+r.sale_total*100).toFixed(1)+'%':'—';
@@ -807,10 +896,10 @@ function renderSales() {
       <td class="${pc}">${r.profit!=null?fmtM(r.profit):'—'}</td>
       <td class="mono" style="color:var(--text2)">${margin}</td>
       <td>${r.buyer?`<span class="tag tag-blue">${r.buyer}</span>`:''}</td>
-      <td style="max-width:130px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
-      <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 14px">
-        <button class="action-btn btn-edit" data-action="sale-edit" data-id="${r.id}">EDIT</button>
-        <button class="action-btn btn-del" data-action="sale-del" data-id="${r.id}">DEL</button>
+      <td style="max-width:120px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
+      <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 12px">
+        <button class="action-btn btn-edit" data-action="sale-edit" data-id="${r.id}">编辑</button>
+        <button class="action-btn btn-del" data-action="sale-del" data-id="${r.id}">删除</button>
       </td></tr>`;
   }).join('');
   const totRev=rows.reduce((s,r)=>s+(+r.sale_total||0),0), totP=rows.reduce((s,r)=>s+(+r.profit||0),0);
@@ -818,11 +907,11 @@ function renderSales() {
   $('sales-foot-rev').textContent=fmtM(totRev);
   const fp=$('sales-foot-profit'); fp.textContent=fmtM(totP); fp.style.color=totP>=0?'var(--green)':'var(--red)';
   $('sales-foot-margin').textContent=totRev?(totP/totRev*100).toFixed(1)+'%':'—';
-  document.querySelectorAll('[id^="ss-"]').forEach(el=>{if(el.classList.contains('sort-ind'))el.textContent='';});
-  const si=$('ss-'+salesSortCol); if(si) si.textContent=salesSortAsc?' ▲':' ▼';
+  document.querySelectorAll('[id^="ss-"]').forEach(el=>{ if(el.classList.contains('sort-ind'))el.textContent=''; });
+  const si=$('ss-'+salesSortCol); if(si)si.textContent=salesSortAsc?' ▲':' ▼';
 }
 
-function updateSalesStats() {
+function updateSalesStats(){
   const rev=salesData.reduce((s,r)=>s+(+r.sale_total||0),0), prof=salesData.reduce((s,r)=>s+(+r.profit||0),0);
   $('ss-count').textContent=salesData.length;
   $('ss-units').textContent=fmt(salesData.reduce((s,r)=>s+(r.quantity||0),0));
@@ -831,16 +920,12 @@ function updateSalesStats() {
   $('ss-margin').textContent=rev?(prof/rev*100).toFixed(1)+'%':'—';
 }
 
-function refreshSalesFilters() {
-  const sel=$('sales-filter-spec'), cur=sel.value;
-  sel.innerHTML='<option value="">All 规格</option>'+[...new Set(salesData.map(r=>r.spec).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
+function refreshSalesFilters(){
+  const sel=$('sales-filter-spec'),cur=sel.value;
+  sel.innerHTML='<option value="">全部规格</option>'+[...new Set(salesData.map(r=>r.spec).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
 }
 
-$('sales-thead').addEventListener('click',e=>{
-  const th=e.target.closest('th.sortable');if(!th)return;
-  salesSortCol===th.dataset.col?salesSortAsc=!salesSortAsc:(salesSortCol=th.dataset.col,salesSortAsc=true);
-  renderSales();
-});
+$('sales-thead').addEventListener('click',e=>{ const th=e.target.closest('th.sortable');if(!th)return; salesSortCol===th.dataset.col?salesSortAsc=!salesSortAsc:(salesSortCol=th.dataset.col,salesSortAsc=true); renderSales(); });
 $('sales-search').addEventListener('input',renderSales);
 $('sales-filter-spec').addEventListener('change',renderSales);
 
@@ -849,57 +934,58 @@ $('sales-tbody').addEventListener('click',async e=>{
   const id=+btn.dataset.id,action=btn.dataset.action;
   if(action==='sale-edit')openSaleModal(id);
   if(action==='sale-del'){
-    if(!confirm('Delete this sale?'))return;
-    try{await sbDelete('sales',id);showNotif('Deleted');await loadSales();}
-    catch(e){showNotif('Error: '+e.message,true);}
+    if(!confirm('确认删除该条销售记录？'))return;
+    try{ await sbDelete('sales',id); showNotif('已删除'); await loadSales(); }
+    catch(e){ showNotif('错误：'+e.message,true); }
   }
 });
+$('sales-export-btn').addEventListener('click',()=>exportCSV(salesData,'销售'));
 
-$('sales-export-btn').addEventListener('click',()=>exportCSV(salesData,'sales'));
-
-// ── SALE MODAL ─────────────────────────────────────────
+// ── 独立销售弹窗 ─────────────────────────
 $('sales-add-btn').addEventListener('click',()=>openSaleModal(null));
 ['sale-modal-close','sale-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('sale-modal')));
-$('sale-modal').addEventListener('click',e=>{if(e.target===$('sale-modal'))closeModal('sale-modal');});
+$('sale-modal').addEventListener('click',e=>{ if(e.target===$('sale-modal'))closeModal('sale-modal'); });
 
-function openSaleModal(id) {
+function openSaleModal(id){
   saleEditId=id;
-  $('sale-modal-title').textContent=id?'EDIT SALE':'RECORD SALE';
+  $('sale-modal-title').textContent=id?'编辑销售记录':'新增销售';
   const fields=['sale_date','spec','part_number','quantity','sale_price','cost_price','sale_total','profit','buyer','notes'];
-  if(id){const r=salesData.find(x=>x.id===id);fields.forEach(f=>{const el=$('fsa-'+f);if(el)el.value=r[f]??'';});}
-  else{fields.forEach(f=>{const el=$('fsa-'+f);if(el)el.value='';});$('fsa-sale_date').value=today();}
+  if(id){ const r=salesData.find(x=>x.id===id); fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=r[f]??''; }); }
+  else{ fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=''; }); $('fsa-sale_date').value=today(); }
   openModal('sale-modal');
 }
 
 function calcSale(){
-  const qty=parseFloat($('fsa-quantity').value)||0,sp=parseFloat($('fsa-sale_price').value)||0,cp=parseFloat($('fsa-cost_price').value)||0;
-  $('fsa-sale_total').value=qty&&sp?(qty*sp).toFixed(2):'';
-  $('fsa-profit').value=qty&&sp?(qty*(sp-cp)).toFixed(2):'';
+  const q=parseFloat($('fsa-quantity').value)||0,sp=parseFloat($('fsa-sale_price').value)||0,cp=parseFloat($('fsa-cost_price').value)||0;
+  $('fsa-sale_total').value=q&&sp?(q*sp).toFixed(2):'';
+  $('fsa-profit').value=q&&sp?(q*(sp-cp)).toFixed(2):'';
 }
 ['fsa-quantity','fsa-sale_price','fsa-cost_price'].forEach(id=>$(id).addEventListener('input',calcSale));
 
 $('sale-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fsa-'+f).value.trim();
   const qty=parseInt(g('quantity'))||0,sp=parseFloat(g('sale_price'));
-  if(!g('sale_date')||!qty||!sp){showNotif('Fill required fields',true);return;}
+  if(!g('sale_date')||!qty||!sp){ showNotif('请填写必填项',true);return; }
   const cp=parseFloat(g('cost_price'))||null;
   const payload={sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:g('spec')||null,part_number:g('part_number')||null,buyer:g('buyer')||null,notes:g('notes')||null};
   try{
     saleEditId?await sbUpdate('sales',saleEditId,payload):await sbInsert('sales',payload);
-    showNotif(saleEditId?'Sale updated ✓':'Sale recorded ✓');
-    closeModal('sale-modal');await loadSales();
-  }catch(e){showNotif('Error: '+e.message,true);}
+    showNotif(saleEditId?'已更新 ✓':'已保存 ✓');
+    closeModal('sale-modal'); await loadSales();
+  }catch(e){ showNotif('错误：'+e.message,true); }
 });
 
-// ── EXPORT ─────────────────────────────────────────────
+// ════════════════════════════════════════
+//  导出 CSV
+// ════════════════════════════════════════
 function exportCSV(data,name){
-  if(!data.length){showNotif('No data to export');return;}
+  if(!data.length){ showNotif('暂无数据');return; }
   const keys=Object.keys(data[0]);
   const csv=[keys.join(','),...data.map(r=>keys.map(k=>JSON.stringify(r[k]??'')).join(','))].join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`ssd_${name}_${today()}.csv`;a.click();
-  showNotif('CSV exported');
+  a.download=`SSD_${name}_${today()}.csv`; a.click();
+  showNotif('CSV 导出成功');
 }
 </script>
 </body>
