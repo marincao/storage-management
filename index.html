@@ -256,13 +256,16 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
 <!-- 库存页 -->
 <div class="page active" id="page-inventory">
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">总条目数</div><div class="stat-value" id="stat-entries">—</div></div>
+    <div class="stat-card"><div class="stat-label">条目数 <span id="stat-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="stat-entries">—</div></div>
     <div class="stat-card"><div class="stat-label">总数量</div><div class="stat-value blue" id="stat-qty">—</div></div>
-    <div class="stat-card"><div class="stat-label">Linda 付款总额</div><div class="stat-value orange" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Linda 付款总额</div><div class="stat-value orange" id="stat-linda">—</div></div>
+    <div class="stat-card"><div class="stat-label">曹总 付款总额</div><div class="stat-value" style="color:#a78bfa" id="stat-cao">—</div></div>
+    <div class="stat-card"><div class="stat-label">Linda/曹 付款总额</div><div class="stat-value" style="color:#34d399" id="stat-both">—</div></div>
     <div class="stat-card"><div class="stat-label">规格种类</div><div class="stat-value green" id="stat-skus">—</div></div>
   </div>
   <div class="toolbar">
     <div class="date-display" id="inv-date"></div>
+    <button class="btn btn-secondary" id="inv-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
     <input class="search-box" type="text" id="inv-search" placeholder="搜索料号/规格/货主…">
     <div class="ms-wrap" id="ms-spec-wrap">
       <div class="ms-btn" id="ms-spec-btn"><span id="ms-spec-label">全部规格</span></div>
@@ -277,7 +280,6 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
       <div class="ms-panel" id="ms-owner-panel"></div>
     </div>
     <select class="filter-select" id="inv-filter-status"><option value="">全部货况</option></select>
-    <button class="btn btn-secondary" id="inv-clear-filter-btn" style="display:none">✕ 清除筛选</button>
     <button class="btn btn-secondary" id="inv-export-btn">导出 CSV</button>
     <button class="btn btn-primary" id="inv-add-btn">＋ 新增入库</button>
   </div>
@@ -421,7 +423,7 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
             <div class="cb-panel" id="cb-panel-warehouse_status"></div>
           </div>
         </div>
-        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fi-notes" rows="2" placeholder="备注信息…"></textarea></div>
+        <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fi-notes" rows="4" placeholder="备注信息…" style="resize:vertical;line-height:1.6"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -589,7 +591,7 @@ async function silentRefresh() {
     const ih = hashArr(newInv), sh = hashArr(newSales);
     if (ih !== lastInvHash) {
       invData = newInv; lastInvHash = ih;
-      renderInventory(); refreshInvFilters(); updateInvStats(); buildMsPanel();
+      renderInventory(); refreshInvFilters(); buildMsPanel();
     }
     if (sh !== lastSalesHash) {
       salesData = newSales; lastSalesHash = sh;
@@ -876,13 +878,13 @@ $('inv-filter-status').addEventListener('change', () => { updateClearBtn(); rend
 //  库存
 // ════════════════════════════════════════
 async function loadInventory(){
-  try{ invData=await sbSelect('inventory'); lastInvHash=hashArr(invData); renderInventory(); refreshInvFilters(); updateInvStats(); refreshDL(); buildMsPanel(); }
+  try{ invData=await sbSelect('inventory'); lastInvHash=hashArr(invData); renderInventory(); refreshInvFilters(); refreshDL(); buildMsPanel(); }
   catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
 function calcGroups(rows){
   const g={};
-  rows.forEach(r=>{ const k=r.spec||''; if(!g[k])g[k]={tq:0,tc:0}; const q=r.quantity||0; g[k].tq+=q; g[k].tc+=q*(parseFloat(r.unit_price)||0); });
+  rows.forEach(r=>{ const k=r.spec||''; if(!g[k])g[k]={tq:0,tc:0,sharedNote:''}; const q=r.quantity||0; g[k].tq+=q; g[k].tc+=q*(parseFloat(r.unit_price)||0); if(!g[k].sharedNote&&r.notes)g[k].sharedNote=r.notes; });
   Object.keys(g).forEach(k=>{ g[k].avg=g[k].tq>0?g[k].tc/g[k].tq:0; });
   return g;
 }
@@ -925,7 +927,7 @@ function renderInventory(){
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
         <td>${statusTag(r.status)}</td>
         <td>${r.warehouse_status||''}</td>
-        <td style="max-width:120px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
+        ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
         <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 12px">
           <button class="action-btn btn-sel" data-action="sel" data-id="${r.id}">卖出</button>
           <button class="action-btn btn-edit" data-action="inv-edit" data-id="${r.id}">编辑</button>
@@ -940,15 +942,25 @@ function renderInventory(){
   $('inv-foot-linda').textContent=fmtM(rows.reduce((s,r)=>s+(+r.linda_payment||0),0));
   document.querySelectorAll('[id^="is-"]').forEach(el=>el.textContent='');
   const si=$('is-'+invSortCol); if(si)si.textContent=invSortAsc?' ▲':' ▼';
-  // store filtered rows for CSV export
+  // store filtered rows for CSV export and update stats
   window._filteredInvRows = rows;
+  updateInvStats(rows);
 }
 
-function updateInvStats(){
-  $('stat-entries').textContent=invData.length;
-  $('stat-qty').textContent=fmt(invData.reduce((s,r)=>s+(r.quantity||0),0));
-  $('stat-total').textContent='¥'+fmtM(invData.reduce((s,r)=>s+(+r.linda_payment||0),0));
-  $('stat-skus').textContent=new Set(invData.map(r=>r.spec)).size;
+function updateInvStats(filteredRows){
+  const rows = filteredRows || invData;
+  const isFiltered = filteredRows && filteredRows.length !== invData.length;
+  $('stat-entries').textContent = rows.length;
+  $('stat-filter-badge').textContent = isFiltered ? `/ ${invData.length}` : '';
+  $('stat-qty').textContent = fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
+  $('stat-skus').textContent = new Set(rows.map(r=>r.spec)).size;
+  // Payment totals by 货主
+  const linda = rows.filter(r=>r.cargo_owner==='LINDA').reduce((s,r)=>s+(+r.linda_payment||0),0);
+  const cao   = rows.filter(r=>r.cargo_owner==='曹总').reduce((s,r)=>s+(+r.linda_payment||0),0);
+  const both  = rows.filter(r=>r.cargo_owner==='LINDA/曹').reduce((s,r)=>s+(+r.linda_payment||0),0);
+  $('stat-linda').textContent = '¥'+fmtM(linda);
+  $('stat-cao').textContent   = '¥'+fmtM(cao);
+  $('stat-both').textContent  = '¥'+fmtM(both);
 }
 
 function refreshInvFilters(){
@@ -1006,6 +1018,10 @@ $('inv-modal-save').addEventListener('click',async()=>{
   const payload={entry_date:g('entry_date'),spec:g('spec'),category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,status:g('status')||'待售',warehouse_status:g('warehouse_status')||null,notes:g('notes')||null};
   try{
     invEditId?await sbUpdate('inventory',invEditId,payload):await sbInsert('inventory',payload);
+    // Sync notes to all other entries with the same 规格
+    const spec=g('spec'), notes=g('notes')||null;
+    const sameSpec=invData.filter(r=>r.spec===spec&&r.id!==invEditId&&r.notes!==notes);
+    if(sameSpec.length) await Promise.all(sameSpec.map(r=>sbUpdate('inventory',r.id,{notes})));
     showNotif(invEditId?'已更新 ✓':'已添加 ✓');
     closeModal('inv-modal'); await loadInventory();
   }catch(e){ showNotif('错误：'+e.message,true); }
@@ -1042,9 +1058,14 @@ $('sell-modal-save').addEventListener('click',async()=>{
   if(qty>stock){ showNotif(`库存不足！当前库存：${fmt(stock)}`,true);return; }
   const cp=parseFloat(g('cost_price'))||null, newQty=stock-qty;
   try{
-    await sbUpdate('inventory',sellInvRow.id,{quantity:newQty});
+    // If quantity hits 0, delete the entry; otherwise update it
+    if(newQty===0){
+      await sbDelete('inventory',sellInvRow.id);
+    } else {
+      await sbUpdate('inventory',sellInvRow.id,{quantity:newQty});
+    }
     await sbInsert('sales',{sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,buyer:g('buyer')||null,notes:g('notes')||null});
-    showNotif(`已售出 ${fmt(qty)} 件，剩余库存 ${fmt(newQty)} ✓`);
+    showNotif(newQty===0?`已售出全部 ${fmt(qty)} 件，库存条目已移除 ✓`:`已售出 ${fmt(qty)} 件，剩余库存 ${fmt(newQty)} ✓`);
     closeModal('sell-modal');
     await loadInventory(); await loadSales();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
