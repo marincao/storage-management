@@ -206,13 +206,14 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
   entry_date TEXT, spec TEXT, part_number TEXT,
   quantity INTEGER, unit_price NUMERIC,
   linda_payment NUMERIC, min_package TEXT,
-  category TEXT, cargo_owner TEXT, status TEXT DEFAULT '待售',
+  category TEXT, supplier TEXT, cargo_owner TEXT, status TEXT DEFAULT '待售',
   warehouse_status TEXT, notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS sales (
   id BIGSERIAL PRIMARY KEY,
-  sale_date TEXT NOT NULL, spec TEXT, part_number TEXT,
+  sale_date TEXT NOT NULL, entry_date TEXT, category TEXT,
+  spec TEXT, supplier TEXT, part_number TEXT,
   quantity INTEGER, sale_price NUMERIC, sale_total NUMERIC,
   cost_price NUMERIC, profit NUMERIC,
   buyer TEXT, notes TEXT,
@@ -222,8 +223,12 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "public_inv" ON inventory FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);
--- 新增 类别 列（已有数据库需运行此行）:
-ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
+-- 新增列（已有数据库需运行）:
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS supplier TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS entry_date TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS supplier TEXT;</pre>
     </div>
     <div class="config-inputs">
       <div><label class="config-label">项目 URL</label><input class="config-input" id="cfg-url" type="text" placeholder="https://xxxx.supabase.co"></div>
@@ -297,6 +302,7 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
         <th>平均成本</th><th>总数量</th>
         <th>最小包装/箱</th>
         <th class="sortable" data-col="cargo_owner">货主<span class="sort-ind" id="is-cargo_owner"></span></th>
+        <th class="sortable" data-col="supplier">供应商<span class="sort-ind" id="is-supplier"></span></th>
         <th class="sortable" data-col="status">货况<span class="sort-ind" id="is-status"></span></th>
         <th>入仓情况</th><th>备注</th>
         <th style="text-align:center">操作</th>
@@ -316,7 +322,7 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
 <!-- 销售页 -->
 <div class="page" id="page-sales">
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">销售笔数</div><div class="stat-value" id="ss-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">销售笔数 <span id="ss-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="ss-count">—</div></div>
     <div class="stat-card"><div class="stat-label">已售数量</div><div class="stat-value blue" id="ss-units">—</div></div>
     <div class="stat-card"><div class="stat-label">总销售额</div><div class="stat-value orange" id="ss-revenue">—</div></div>
     <div class="stat-card"><div class="stat-label">总利润</div><div class="stat-value green" id="ss-profit">—</div></div>
@@ -324,8 +330,16 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
   </div>
   <div class="toolbar">
     <div class="date-display" id="sales-date"></div>
-    <input class="search-box" type="text" id="sales-search" placeholder="搜索料号/规格/买家…">
-    <select class="filter-select" id="sales-filter-spec"><option value="">全部规格</option></select>
+    <button class="btn btn-secondary" id="sales-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
+    <input class="search-box" type="text" id="sales-search" placeholder="搜索规格/料号/客户…">
+    <div class="ms-wrap" id="ms-sales-spec-wrap">
+      <div class="ms-btn" id="ms-sales-spec-btn"><span id="ms-sales-spec-label">全部规格</span></div>
+      <div class="ms-panel" id="ms-sales-spec-panel"></div>
+    </div>
+    <div class="ms-wrap" id="ms-sales-cat-wrap">
+      <div class="ms-btn" id="ms-sales-cat-btn"><span id="ms-sales-cat-label">全部类别</span></div>
+      <div class="ms-panel" id="ms-sales-cat-panel"></div>
+    </div>
     <button class="btn btn-secondary" id="sales-export-btn">导出 CSV</button>
     <button class="btn btn-sales" id="sales-add-btn">＋ 新增销售</button>
   </div>
@@ -333,26 +347,31 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
     <div class="table-title sales-title">销售记录</div>
     <table>
       <thead><tr class="sales-head" id="sales-thead">
-        <th class="sortable" data-col="sale_date">销售日期<span class="sort-ind" id="ss-sale_date"></span></th>
+        <th class="sortable" data-col="category">类别<span class="sort-ind" id="ss-category"></span></th>
         <th class="sortable" data-col="spec">规格<span class="sort-ind" id="ss-spec"></span></th>
+        <th class="sortable" data-col="entry_date">进货日期<span class="sort-ind" id="ss-entry_date"></span></th>
+        <th class="sortable" data-col="supplier">供应商<span class="sort-ind" id="ss-supplier"></span></th>
         <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="ss-part_number"></span></th>
         <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="ss-quantity"></span></th>
-        <th class="sortable" data-col="sale_price">销售单价<span class="sort-ind" id="ss-sale_price"></span></th>
-        <th class="sortable" data-col="sale_total">销售总额<span class="sort-ind" id="ss-sale_total"></span></th>
-        <th class="sortable" data-col="cost_price">成本单价<span class="sort-ind" id="ss-cost_price"></span></th>
+        <th class="sortable" data-col="cost_price">进价<span class="sort-ind" id="ss-cost_price"></span></th>
+        <th class="sortable" data-col="sale_date">出货日期<span class="sort-ind" id="ss-sale_date"></span></th>
+        <th class="sortable" data-col="buyer">客户<span class="sort-ind" id="ss-buyer"></span></th>
+        <th class="sortable" data-col="sale_price">售价<span class="sort-ind" id="ss-sale_price"></span></th>
         <th class="sortable" data-col="profit">利润<span class="sort-ind" id="ss-profit-col"></span></th>
+        <th>当月累计</th>
         <th>利润率</th>
-        <th class="sortable" data-col="buyer">买家<span class="sort-ind" id="ss-buyer"></span></th>
-        <th>备注</th><th style="text-align:center">操作</th>
+        <th>备注</th>
+        <th style="text-align:center">操作</th>
       </tr></thead>
-      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="12">连接中…</td></tr></tbody>
+      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="15">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="3">合计</td>
-        <td id="sales-foot-qty" class="mono">—</td><td></td>
-        <td id="sales-foot-rev" class="mono">—</td><td></td>
+        <td colspan="5">合计</td>
+        <td id="sales-foot-qty" class="mono">—</td><td></td><td></td><td></td>
+        <td id="sales-foot-rev" class="mono">—</td>
         <td id="sales-foot-profit" class="mono">—</td>
+        <td></td>
         <td id="sales-foot-margin" class="mono">—</td>
-        <td colspan="3"></td>
+        <td colspan="2"></td>
       </tr></tfoot>
     </table>
     <div class="empty-state" id="sales-empty"><div class="empty-icon">💰</div>暂无销售记录</div>
@@ -412,6 +431,14 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
             <div class="cb-panel" id="cb-panel-cargo_owner"></div>
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">供应商</label>
+          <div class="cb-wrap" id="cb-wrap-supplier">
+            <input class="cb-input form-input" type="text" id="fi-supplier" placeholder="供应商名称" autocomplete="off">
+            <span class="cb-arrow" data-cb="supplier">▾</span>
+            <div class="cb-panel" id="cb-panel-supplier"></div>
+          </div>
+        </div>
         <div class="form-group"><label class="form-label">货况</label>
           <select class="form-input" id="fi-status"><option value="待售">待售</option><option value="已售">已售</option><option value="预售">预售</option><option value="缺货">缺货</option></select>
         </div>
@@ -440,16 +467,16 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
     <div class="modal-body">
       <div class="inv-info-box" id="sell-info"></div>
       <div class="form-grid">
-        <div class="form-group"><label class="form-label">销售日期 *</label><input class="form-input" type="date" id="fs-sale_date"></div>
+        <div class="form-group"><label class="form-label">出货日期 *</label><input class="form-input" type="date" id="fs-sale_date"></div>
         <div class="form-group"><label class="form-label">销售数量 *（当前库存：<span id="fs-stock-display">0</span>）</label><input class="form-input" type="number" id="fs-quantity" placeholder="0" min="1"></div>
         <div class="form-group"><label class="form-label">售价（单价）*</label><input class="form-input" type="number" step="0.01" id="fs-sale_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">成本单价（自动）</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" readonly style="background:var(--surface2)"></div>
+        <div class="form-group"><label class="form-label">进价（自动）</label><input class="form-input" type="number" step="0.01" id="fs-cost_price" readonly style="background:var(--surface2)"></div>
         <div class="form-group"><label class="form-label">销售总额（自动）</label><input class="form-input" type="number" id="fs-sale_total" readonly style="color:var(--accent3);background:var(--surface2)"></div>
         <div class="form-group"><label class="form-label">利润（自动）</label><input class="form-input" type="number" id="fs-profit" readonly style="color:var(--green);background:var(--surface2)"></div>
         <div class="form-group">
-          <label class="form-label">买家</label>
+          <label class="form-label">客户</label>
           <div class="cb-wrap" id="cb-wrap-fs-buyer">
-            <input class="cb-input form-input" type="text" id="fs-buyer" placeholder="买家名称" autocomplete="off">
+            <input class="cb-input form-input" type="text" id="fs-buyer" placeholder="客户名称" autocomplete="off">
             <span class="cb-arrow" data-cb="fs-buyer">▾</span>
             <div class="cb-panel" id="cb-panel-fs-buyer"></div>
           </div>
@@ -470,23 +497,31 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;</pre>
     <div class="modal-header"><div class="modal-title orange" id="sale-modal-title">新增销售</div><button class="modal-close" id="sale-modal-close">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-group"><label class="form-label">销售日期 *</label><input class="form-input" type="date" id="fsa-sale_date"></div>
+        <div class="form-group"><label class="form-label">出货日期 *</label><input class="form-input" type="date" id="fsa-sale_date"></div>
+        <div class="form-group"><label class="form-label">进货日期</label><input class="form-input" type="date" id="fsa-entry_date"></div>
+        <div class="form-group">
+          <label class="form-label">类别</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-category" placeholder="如 存储/闪存" autocomplete="off"><span class="cb-arrow" data-cb="fsa-category">▾</span><div class="cb-panel" id="cb-panel-fsa-category"></div></div>
+        </div>
         <div class="form-group">
           <label class="form-label">规格</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-spec" placeholder="如 EMMC 8G" autocomplete="off"><span class="cb-arrow" data-cb="fsa-spec">▾</span><div class="cb-panel" id="cb-panel-fsa-spec"></div></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">供应商</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-supplier" placeholder="供应商名称" autocomplete="off"><span class="cb-arrow" data-cb="fsa-supplier">▾</span><div class="cb-panel" id="cb-panel-fsa-supplier"></div></div>
         </div>
         <div class="form-group">
           <label class="form-label">料号</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-part_number" placeholder="如 KLM8G…" autocomplete="off"><span class="cb-arrow" data-cb="fsa-part_number">▾</span><div class="cb-panel" id="cb-panel-fsa-part_number"></div></div>
         </div>
         <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fsa-quantity" placeholder="0"></div>
-        <div class="form-group"><label class="form-label">销售单价 *</label><input class="form-input" type="number" step="0.01" id="fsa-sale_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">成本单价</label><input class="form-input" type="number" step="0.01" id="fsa-cost_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">销售总额（自动）</label><input class="form-input" type="number" id="fsa-sale_total" readonly style="color:var(--accent3);background:var(--surface2)"></div>
+        <div class="form-group"><label class="form-label">进价</label><input class="form-input" type="number" step="0.01" id="fsa-cost_price" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">售价 *</label><input class="form-input" type="number" step="0.01" id="fsa-sale_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">利润（自动）</label><input class="form-input" type="number" id="fsa-profit" readonly style="color:var(--green);background:var(--surface2)"></div>
         <div class="form-group">
-          <label class="form-label">买家</label>
-          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-buyer" placeholder="买家名称" autocomplete="off"><span class="cb-arrow" data-cb="fsa-buyer">▾</span><div class="cb-panel" id="cb-panel-fsa-buyer"></div></div>
+          <label class="form-label">客户</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-buyer" placeholder="客户名称" autocomplete="off"><span class="cb-arrow" data-cb="fsa-buyer">▾</span><div class="cb-panel" id="cb-panel-fsa-buyer"></div></div>
         </div>
         <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fsa-notes" rows="2" placeholder="备注…"></textarea></div>
       </div>
@@ -595,7 +630,7 @@ async function silentRefresh() {
     }
     if (sh !== lastSalesHash) {
       salesData = newSales; lastSalesHash = sh;
-      renderSales(); refreshSalesFilters(); updateSalesStats();
+      renderSales(); refreshSalesFilters();
     }
   } catch(e) { /* 静默失败 */ }
 }
@@ -762,23 +797,41 @@ const cbSources = {
   'min_package':      () => [...new Set(invData.map(r=>r.min_package).filter(Boolean))].sort(),
   'cargo_owner':      () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(),
   'category':         () => [...new Set(invData.map(r=>r.category).filter(Boolean))].sort(),
+  'supplier':         () => [...new Set(invData.map(r=>r.supplier).filter(Boolean))].sort(),
   'warehouse_status': () => [...new Set(invData.map(r=>r.warehouse_status).filter(Boolean))].sort(),
   'buyer':            () => [...new Set(salesData.map(r=>r.buyer).filter(Boolean))].sort(),
 };
 
 // Init all comboboxes once DOM ready
 function initAllCB() {
-  // inv-modal comboboxes (fi- prefix, panel id = cb-panel-{fieldname})
-  [['fi-spec','spec'],['fi-category','category'],['fi-part_number','part_number'],['fi-min_package','min_package'],
-   ['fi-cargo_owner','cargo_owner'],['fi-warehouse_status','warehouse_status']].forEach(([inputId, src]) => {
+  // inv-modal comboboxes — spec, category, min_package, cargo_owner, supplier, warehouse_status
+  [['fi-spec','spec'],['fi-category','category'],['fi-min_package','min_package'],
+   ['fi-cargo_owner','cargo_owner'],['fi-supplier','supplier'],['fi-warehouse_status','warehouse_status']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+src);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
   });
+  // fi-part_number: options filtered by currently selected spec
+  const partInp = $('fi-part_number'), partPan = $('cb-panel-part_number');
+  if (partInp && partPan) {
+    initCB(partInp, partPan, () => {
+      const spec = ($('fi-spec').value||'').trim();
+      const pool = spec
+        ? invData.filter(r=>r.spec===spec).map(r=>r.part_number)
+        : invData.map(r=>r.part_number);
+      return [...new Set(pool.filter(Boolean))].sort();
+    });
+    // Clear part_number when spec changes so stale value doesn't linger
+    $('fi-spec').addEventListener('input', () => {
+      partInp.value = '';
+      partPan.classList.remove('open');
+      partInp.classList.remove('open');
+    });
+  }
   // sell-modal buyer
   const fsBuyer = $('fs-buyer'), fsBuyerPan = $('cb-panel-fs-buyer');
   if (fsBuyer && fsBuyerPan) initCB(fsBuyer, fsBuyerPan, cbSources['buyer']);
   // sale-modal comboboxes (fsa- prefix, panel id = cb-panel-fsa-{fieldname})
-  [['fsa-spec','spec'],['fsa-part_number','part_number'],['fsa-buyer','buyer']].forEach(([inputId, src]) => {
+  [['fsa-spec','spec'],['fsa-category','category'],['fsa-supplier','supplier'],['fsa-part_number','part_number'],['fsa-buyer','buyer']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+inputId);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
   });
@@ -925,6 +978,7 @@ function renderInventory(){
                  <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
+        <td style="font-size:11px;color:var(--text2)">${r.supplier||''}</td>
         <td>${statusTag(r.status)}</td>
         <td>${r.warehouse_status||''}</td>
         ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
@@ -998,7 +1052,7 @@ function calcLinda(){
 function openInvModal(id){
   invEditId=id;
   $('inv-modal-title').textContent=id?'编辑入库记录':'新增入库';
-  const fields=['entry_date','spec','category','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','status','warehouse_status','notes'];
+  const fields=['entry_date','spec','category','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','supplier','status','warehouse_status','notes'];
   if(id){
     const r=invData.find(x=>x.id===id);
     fields.forEach(f=>{ const el=$('fi-'+f);if(el)el.value=r[f]??''; });
@@ -1015,13 +1069,22 @@ $('inv-modal-save').addEventListener('click',async()=>{
   if(!g('entry_date')||!g('spec')||!g('part_number')){ showNotif('请填写必填项（*）',true);return; }
   const qty=parseInt(g('quantity'))||0, price=parseFloat(g('unit_price'))||null;
   const linda=qty&&price?qty*price:(parseFloat(g('linda_payment'))||null);
-  const payload={entry_date:g('entry_date'),spec:g('spec'),category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,status:g('status')||'待售',warehouse_status:g('warehouse_status')||null,notes:g('notes')||null};
+  const payload={entry_date:g('entry_date'),spec:g('spec'),category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,supplier:g('supplier')||null,status:g('status')||'待售',warehouse_status:g('warehouse_status')||null,notes:g('notes')||null};
   try{
+    const spec=g('spec'), newNote=g('notes')||null;
+    // For new entries: concat with existing shared note; for edits: replace (user explicitly changed it)
+    let finalNote=newNote;
+    if(!invEditId && newNote){
+      const existing=invData.find(r=>r.spec===spec&&r.notes);
+      if(existing&&existing.notes&&existing.notes!==newNote){
+        finalNote=existing.notes+'\n'+newNote;
+      }
+    }
+    payload.notes=finalNote;
     invEditId?await sbUpdate('inventory',invEditId,payload):await sbInsert('inventory',payload);
-    // Sync notes to all other entries with the same 规格
-    const spec=g('spec'), notes=g('notes')||null;
-    const sameSpec=invData.filter(r=>r.spec===spec&&r.id!==invEditId&&r.notes!==notes);
-    if(sameSpec.length) await Promise.all(sameSpec.map(r=>sbUpdate('inventory',r.id,{notes})));
+    // Sync combined note to all other entries with the same 规格
+    const sameSpec=invData.filter(r=>r.spec===spec&&r.id!==invEditId&&r.notes!==finalNote);
+    if(sameSpec.length) await Promise.all(sameSpec.map(r=>sbUpdate('inventory',r.id,{notes:finalNote})));
     showNotif(invEditId?'已更新 ✓':'已添加 ✓');
     closeModal('inv-modal'); await loadInventory();
   }catch(e){ showNotif('错误：'+e.message,true); }
@@ -1064,7 +1127,7 @@ $('sell-modal-save').addEventListener('click',async()=>{
     } else {
       await sbUpdate('inventory',sellInvRow.id,{quantity:newQty});
     }
-    await sbInsert('sales',{sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,buyer:g('buyer')||null,notes:g('notes')||null});
+    await sbInsert('sales',{sale_date:g('sale_date'),entry_date:sellInvRow.entry_date||null,category:sellInvRow.category||null,supplier:sellInvRow.supplier||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,buyer:g('buyer')||null,notes:g('notes')||null});
     showNotif(newQty===0?`已售出全部 ${fmt(qty)} 件，库存条目已移除 ✓`:`已售出 ${fmt(qty)} 件，剩余库存 ${fmt(newQty)} ✓`);
     closeModal('sell-modal');
     await loadInventory(); await loadSales();
@@ -1079,29 +1142,41 @@ $('sell-modal-save').addEventListener('click',async()=>{
 //  销售记录
 // ════════════════════════════════════════
 async function loadSales(){
-  try{ salesData=await sbSelect('sales'); lastSalesHash=hashArr(salesData); renderSales(); refreshSalesFilters(); updateSalesStats(); refreshDL(); }
+  try{ salesData=await sbSelect('sales'); lastSalesHash=hashArr(salesData); renderSales(); refreshSalesFilters(); refreshDL(); }
   catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
 function renderSales(){
-  const search=$('sales-search').value.toLowerCase(), specF=$('sales-filter-spec').value;
-  let rows=salesData.filter(r=>(!specF||r.spec===specF)&&(!search||['spec','part_number','buyer','notes'].some(f=>(r[f]||'').toLowerCase().includes(search))));
+  const search=$('sales-search').value.toLowerCase();
+  let rows=salesData.filter(r=>
+    (selectedSalesSpecs.size===0||selectedSalesSpecs.has(r.spec))&&
+    (selectedSalesCats.size===0||selectedSalesCats.has(r.category))&&
+    (!search||['spec','category','part_number','buyer','supplier','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))
+  );
   rows.sort((a,b)=>{ let av=a[salesSortCol]??'',bv=b[salesSortCol]??''; return salesSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sales-empty').style.display=rows.length?'none':'block';
+  // 当月累计: total qty of same spec in same year-month across ALL salesData
+  const monthlyTotals={};
+  salesData.forEach(r=>{ const k=(r.spec||'')+'|'+(r.sale_date||'').slice(0,7); monthlyTotals[k]=(monthlyTotals[k]||0)+(r.quantity||0); });
   $('sales-tbody').innerHTML=rows.map(r=>{
     const margin=r.sale_total&&r.profit!=null?(+r.profit/+r.sale_total*100).toFixed(1)+'%':'—';
     const pc=+r.profit>=0?'profit-pos':'profit-neg';
+    const monthly=monthlyTotals[(r.spec||'')+'|'+(r.sale_date||'').slice(0,7)]||0;
     return `<tr>
-      <td class="mono">${r.sale_date||''}</td><td>${r.spec||''}</td>
+      <td>${r.category||''}</td>
+      <td>${r.spec||''}</td>
+      <td class="mono">${r.entry_date||''}</td>
+      <td>${r.supplier||''}</td>
       <td class="mono" style="font-size:10px">${r.part_number||''}</td>
       <td class="mono">${fmt(r.quantity)}</td>
-      <td class="mono">${r.sale_price!=null?(+r.sale_price).toFixed(2):''}</td>
-      <td class="mono" style="color:var(--accent3)">${r.sale_total!=null?fmtM(r.sale_total):''}</td>
       <td class="mono">${r.cost_price!=null?(+r.cost_price).toFixed(2):''}</td>
-      <td class="${pc}">${r.profit!=null?fmtM(r.profit):'—'}</td>
-      <td class="mono" style="color:var(--text2)">${margin}</td>
+      <td class="mono">${r.sale_date||''}</td>
       <td>${r.buyer?`<span class="tag tag-blue">${r.buyer}</span>`:''}</td>
-      <td style="max-width:120px;white-space:normal;font-size:11px;color:var(--text2)">${r.notes||''}</td>
+      <td class="mono">${r.sale_price!=null?(+r.sale_price).toFixed(2):''}</td>
+      <td class="${pc}">${r.profit!=null?fmtM(r.profit):'—'}</td>
+      <td class="mono" style="color:var(--accent2)">${fmt(monthly)}</td>
+      <td class="mono" style="color:var(--text2)">${margin}</td>
+      <td style="max-width:130px;white-space:pre-wrap;font-size:11px;color:var(--text2)">${r.notes||''}</td>
       <td style="text-align:center;display:flex;gap:4px;justify-content:center;padding:8px 12px">
         <button class="action-btn btn-edit" data-action="sale-edit" data-id="${r.id}">编辑</button>
         <button class="action-btn btn-del" data-action="sale-del" data-id="${r.id}">删除</button>
@@ -1115,25 +1190,44 @@ function renderSales(){
   document.querySelectorAll('[id^="ss-"]').forEach(el=>{ if(el.classList.contains('sort-ind'))el.textContent=''; });
   const si=$('ss-'+salesSortCol); if(si)si.textContent=salesSortAsc?' ▲':' ▼';
   window._filteredSalesRows = rows;
+  updateSalesStats(rows);
 }
 
-function updateSalesStats(){
-  const rev=salesData.reduce((s,r)=>s+(+r.sale_total||0),0), prof=salesData.reduce((s,r)=>s+(+r.profit||0),0);
-  $('ss-count').textContent=salesData.length;
-  $('ss-units').textContent=fmt(salesData.reduce((s,r)=>s+(r.quantity||0),0));
+function updateSalesStats(filteredRows){
+  const rows=filteredRows||salesData;
+  const isFiltered=filteredRows&&filteredRows.length!==salesData.length;
+  const rev=rows.reduce((s,r)=>s+(+r.sale_total||0),0), prof=rows.reduce((s,r)=>s+(+r.profit||0),0);
+  $('ss-count').textContent=rows.length;
+  $('ss-filter-badge').textContent=isFiltered?`/ ${salesData.length}`:'';
+  $('ss-units').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
   $('ss-revenue').textContent='¥'+fmtM(rev);
   const pe=$('ss-profit'); pe.textContent='¥'+fmtM(prof); pe.className='stat-value '+(prof>=0?'green':'red');
   $('ss-margin').textContent=rev?(prof/rev*100).toFixed(1)+'%':'—';
 }
 
-function refreshSalesFilters(){
-  const sel=$('sales-filter-spec'),cur=sel.value;
-  sel.innerHTML='<option value="">全部规格</option>'+[...new Set(salesData.map(r=>r.spec).filter(Boolean))].sort().map(s=>`<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
+// ── Sales multi-select filters ──────────
+let selectedSalesSpecs=new Set(), selectedSalesCats=new Set();
+
+function updateSalesClearBtn(){
+  const has=selectedSalesSpecs.size||selectedSalesCats.size||$('sales-search').value;
+  $('sales-clear-filter-btn').style.display=has?'':'none';
 }
 
+const msSalesSpec=buildMsGeneric('ms-sales-spec-wrap','ms-sales-spec-btn','ms-sales-spec-label','ms-sales-spec-panel',
+  ()=>[...new Set(salesData.map(r=>r.spec).filter(Boolean))].sort(),selectedSalesSpecs,'全部规格',()=>{ updateSalesClearBtn(); renderSales(); });
+const msSalesCat=buildMsGeneric('ms-sales-cat-wrap','ms-sales-cat-btn','ms-sales-cat-label','ms-sales-cat-panel',
+  ()=>[...new Set(salesData.map(r=>r.category).filter(Boolean))].sort(),selectedSalesCats,'全部类别',()=>{ updateSalesClearBtn(); renderSales(); });
+
+function buildSalesMsPanel(){ msSalesSpec?.rebuild(); msSalesCat?.rebuild(); }
+function refreshSalesFilters(){ buildSalesMsPanel(); }
+
+$('sales-clear-filter-btn').addEventListener('click',()=>{
+  selectedSalesSpecs.clear(); selectedSalesCats.clear(); $('sales-search').value='';
+  buildSalesMsPanel(); msSalesSpec?.updateLabel(); msSalesCat?.updateLabel();
+  updateSalesClearBtn(); renderSales();
+});
+$('sales-search').addEventListener('input',()=>{ updateSalesClearBtn(); renderSales(); });
 $('sales-thead').addEventListener('click',e=>{ const th=e.target.closest('th.sortable');if(!th)return; salesSortCol===th.dataset.col?salesSortAsc=!salesSortAsc:(salesSortCol=th.dataset.col,salesSortAsc=true); renderSales(); });
-$('sales-search').addEventListener('input',renderSales);
-$('sales-filter-spec').addEventListener('change',renderSales);
 
 $('sales-tbody').addEventListener('click',async e=>{
   const btn=e.target.closest('[data-action]');if(!btn)return;
@@ -1155,7 +1249,7 @@ $('sale-modal').addEventListener('click',e=>{ if(e.target===$('sale-modal'))clos
 function openSaleModal(id){
   saleEditId=id;
   $('sale-modal-title').textContent=id?'编辑销售记录':'新增销售';
-  const fields=['sale_date','spec','part_number','quantity','sale_price','cost_price','sale_total','profit','buyer','notes'];
+  const fields=['sale_date','entry_date','category','spec','supplier','part_number','quantity','sale_price','cost_price','sale_total','profit','buyer','notes'];
   if(id){ const r=salesData.find(x=>x.id===id); fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=r[f]??''; }); }
   else{ fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=''; }); $('fsa-sale_date').value=today(); }
   openModal('sale-modal');
@@ -1173,7 +1267,7 @@ $('sale-modal-save').addEventListener('click',async()=>{
   const qty=parseInt(g('quantity'))||0,sp=parseFloat(g('sale_price'));
   if(!g('sale_date')||!qty||!sp){ showNotif('请填写必填项',true);return; }
   const cp=parseFloat(g('cost_price'))||null;
-  const payload={sale_date:g('sale_date'),quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:g('spec')||null,part_number:g('part_number')||null,buyer:g('buyer')||null,notes:g('notes')||null};
+  const payload={sale_date:g('sale_date'),entry_date:g('entry_date')||null,category:g('category')||null,supplier:g('supplier')||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:g('spec')||null,part_number:g('part_number')||null,buyer:g('buyer')||null,notes:g('notes')||null};
   try{
     saleEditId?await sbUpdate('sales',saleEditId,payload):await sbInsert('sales',payload);
     showNotif(saleEditId?'已更新 ✓':'已保存 ✓');
