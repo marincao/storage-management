@@ -186,6 +186,36 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
 .color-swatch.active{border-color:var(--text)}
 .color-swatch-clear{width:28px;height:28px;border-radius:4px;cursor:pointer;border:1px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:14px;transition:border-color .15s}
 .color-swatch-clear:hover{border-color:var(--red);color:var(--red)}
+
+/* ── 登录/注册页 ── */
+.auth-screen{position:fixed;inset:0;background:var(--bg);z-index:1001;display:flex;align-items:center;justify-content:center}
+.auth-screen.hidden{display:none}
+.auth-box{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:40px;width:420px;max-width:95vw}
+.auth-logo-mark{width:48px;height:48px;background:var(--accent);clip-path:polygon(20% 0%,80% 0%,100% 50%,80% 100%,20% 100%,0% 50%);margin:0 auto 14px}
+.auth-title{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--accent);text-align:center}
+.auth-sub{font-size:12px;color:var(--text2);text-align:center;margin-top:6px}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin:24px 0 20px}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.auth-inputs{display:flex;flex-direction:column;gap:12px}
+.auth-label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block}
+.auth-input{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:13px;border-radius:4px;outline:none;transition:border .2s}
+.auth-input:focus{border-color:var(--accent)}
+.auth-btn{width:100%;margin-top:8px;padding:11px;background:var(--accent);border:none;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#fff;cursor:pointer;transition:all .2s}
+.auth-btn:hover{filter:brightness(1.1)}
+.auth-btn:disabled{opacity:.5;cursor:not-allowed}
+.auth-err{font-size:11px;color:var(--red);text-align:center;font-family:'IBM Plex Mono',monospace;margin-top:10px;min-height:16px}
+.auth-note{font-size:11px;color:var(--text3);text-align:center;margin-top:10px}
+
+/* ── 用户管理弹窗 ── */
+.user-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.user-row:last-child{border-bottom:none}
+.user-name{flex:1;font-size:13px;color:var(--text)}
+.role-select{padding:5px 10px;font-size:12px;border-radius:4px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);cursor:pointer}
+.role-badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.role-admin{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+.role-normal{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.2)}
+.role-viewer{background:rgba(139,150,176,0.1);color:var(--text2);border:1px solid rgba(139,150,176,0.2)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -193,6 +223,40 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
 </head>
 <body>
 <div class="wrapper">
+
+<!-- 登录/注册页 -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo-mark"></div>
+    <div class="auth-title">SSD 库存管理系统</div>
+    <div class="auth-sub">请登录以继续</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login">登录</div>
+      <div class="auth-tab" id="tab-register">注册</div>
+    </div>
+    <div class="auth-inputs">
+      <div><label class="auth-label">用户 ID</label><input class="auth-input" id="auth-userid" type="text" placeholder="输入用户 ID" autocomplete="username"></div>
+      <div><label class="auth-label">密码</label><input class="auth-input" id="auth-password" type="password" placeholder="输入密码" autocomplete="current-password"></div>
+    </div>
+    <div class="auth-err" id="auth-err"></div>
+    <button class="auth-btn" id="auth-submit">登录</button>
+    <div class="auth-note" id="auth-note">默认权限：查看者（Viewer）</div>
+  </div>
+</div>
+
+<!-- 用户管理弹窗（管理员专用） -->
+<div class="modal-overlay" id="users-modal">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">用户管理</div>
+      <button class="modal-close" id="users-modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="users-modal-body" style="min-height:120px">
+      <div style="text-align:center;color:var(--text3);font-size:13px;padding:20px">加载中…</div>
+    </div>
+  </div>
+</div>
+
 
 <!-- 配置页（凭证已内置，默认隐藏） -->
 <div class="config-screen hidden" id="config-screen">
@@ -238,7 +302,17 @@ ALTER TABLE inventory ADD COLUMN IF NOT EXISTS supplier TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS entry_date TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS supplier TEXT;
-ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;</pre>
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;
+-- 用户角色表（需手动运行）:
+CREATE TABLE IF NOT EXISTS user_roles (
+  id BIGSERIAL PRIMARY KEY,
+  user_id TEXT UNIQUE NOT NULL,
+  pw_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true);</pre>
     </div>
     <div class="config-inputs">
       <div><label class="config-label">项目 URL</label><input class="config-input" id="cfg-url" type="text" placeholder="https://xxxx.supabase.co"></div>
@@ -257,7 +331,11 @@ ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;</pre>
   </div>
   <div class="header-right">
     <div class="live-badge" id="live-badge"><div class="live-dot" id="live-dot"></div><span id="live-label">实时在线</span></div>
+    <span id="user-badge" style="font-size:12px;color:var(--text2);padding:4px 10px;border:1px solid var(--border2);border-radius:4px;display:none"></span>
+    <button class="hdr-btn" id="chpw-btn" style="display:none">改密</button>
+    <button class="hdr-btn" id="manage-users-btn" style="display:none;color:var(--red);border-color:rgba(239,68,68,0.3)">用户管理</button>
     <button id="theme-btn" title="切换主题">🌙</button>
+    <button class="hdr-btn" id="logout-btn" style="display:none">退出登录</button>
     <button class="hdr-btn" id="disconnect-btn">重新连接</button>
   </div>
 </header>
@@ -693,6 +771,37 @@ ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;</pre>
   </div>
 </div>
 
+<!-- 修改密码弹窗 -->
+<div class="modal-overlay" id="chpw-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <div class="modal-title" id="chpw-modal-title">修改密码</div>
+      <button class="modal-close" id="chpw-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="grid-template-columns:1fr">
+        <div class="form-group" id="chpw-old-group">
+          <label class="form-label">当前密码</label>
+          <input class="form-input" type="password" id="chpw-old" placeholder="输入当前密码" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">新密码</label>
+          <input class="form-input" type="password" id="chpw-new" placeholder="输入新密码" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认新密码</label>
+          <input class="form-input" type="password" id="chpw-confirm" placeholder="再次输入新密码" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="auth-err" id="chpw-err"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="chpw-cancel">取消</button>
+      <button class="btn btn-primary" id="chpw-save">保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="notif" id="notif"></div>
 <div class="color-picker-popup" id="color-picker-popup" style="display:none"></div>
 </div>
@@ -751,11 +860,294 @@ $('theme-btn').addEventListener('click',()=>{
 // ════════════════════════════════════════
 //  连接
 // ════════════════════════════════════════
-function showApp(){ $('config-screen').classList.add('hidden'); loadInventory(); loadSales(); loadSummary(); startRealtime(); }
+// ════════════════════════════════════════
+//  Auth & Roles
+// ════════════════════════════════════════
+// Roles: admin > normal > viewer
+// admin:  all 3 pages, full edit
+// normal: 库存管理 + 汇总, full edit; 销售记录 hidden
+// viewer: 库存管理 + 汇总, read-only; 销售记录 hidden
 
-// ════════════════════════════════════════
-//  实时更新：Supabase Realtime + 轮询兜底
-// ════════════════════════════════════════
+let currentUser = null; // { user_id, role }
+
+// Simple password hash (SHA-256 hex) — runs in browser
+async function hashPassword(pw) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// user_roles table: user_id, role, pw_hash
+async function authSelect(filter) {
+  const r = await fetch(`${API_URL}/rest/v1/user_roles?${filter}&select=*`, {headers:sbH()});
+  if(!r.ok) throw new Error((await r.json()).message||r.statusText);
+  return r.json();
+}
+async function authInsert(data) {
+  const r = await fetch(`${API_URL}/rest/v1/user_roles`, {method:'POST',headers:sbH(),body:JSON.stringify(data)});
+  if(!r.ok) throw new Error((await r.json()).message||r.statusText);
+  return r.json();
+}
+async function authUpdate(userId, data) {
+  const r = await fetch(`${API_URL}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(userId)}`, {method:'PATCH',headers:sbH(),body:JSON.stringify(data)});
+  if(!r.ok) throw new Error((await r.json()).message||r.statusText);
+  return r.json();
+}
+
+// Apply role-based UI restrictions
+function applyRole(role) {
+  const salesTab  = document.querySelector('.tab.sales-tab');
+  const salesPage = $('page-sales');
+  const editBtns  = document.querySelectorAll('.btn-primary,.btn-sales,.btn-sel,.btn-edit,.btn-del,.action-btn');
+
+  if (role === 'admin') {
+    // Full access — show everything
+    if (salesTab) salesTab.style.display = '';
+    $('manage-users-btn').style.display = '';
+  } else if (role === 'normal') {
+    // Hide sales tab/page
+    if (salesTab) salesTab.style.display = 'none';
+    if (salesPage) salesPage.style.display = 'none';
+    // If currently on sales tab, switch to inventory
+    if (document.querySelector('.tab.sales-tab.active')) {
+      document.querySelector('.tab[data-tab="inventory"]')?.click();
+    }
+    $('manage-users-btn').style.display = 'none';
+  } else {
+    // viewer: hide sales tab, disable all edit buttons
+    if (salesTab) salesTab.style.display = 'none';
+    if (salesPage) salesPage.style.display = 'none';
+    $('manage-users-btn').style.display = 'none';
+    disableEditing();
+  }
+}
+
+function disableEditing() {
+  // Hide add/edit/delete/sell buttons, export stays
+  const hide = [
+    'inv-add-btn','sum-add-btn','sales-add-btn',
+  ];
+  hide.forEach(id=>{ const el=$(id); if(el) el.style.display='none'; });
+  // Also hide action buttons dynamically after render — patch renderInventory/renderSummary
+  window._viewerMode = true;
+}
+
+function showApp() {
+  $('config-screen').classList.add('hidden');
+  $('auth-screen').classList.add('hidden');
+  $('user-badge').textContent=`${currentUser.user_id} · ${{'admin':'管理员','normal':'普通用户','viewer':'查看者'}[currentUser.role]||currentUser.role}`;
+  $('user-badge').style.display='';
+  $('chpw-btn').style.display='';
+  $('logout-btn').style.display='';
+  loadInventory(); loadSales(); loadSummary(); startRealtime();
+  applyRole(currentUser?.role || 'viewer');
+}
+
+// ── Auth screen logic ────────────────────────────────────────────────────
+let authMode = 'login'; // 'login' | 'register'
+
+$('tab-login').addEventListener('click',()=>{
+  authMode='login';
+  $('tab-login').classList.add('active'); $('tab-register').classList.remove('active');
+  $('auth-submit').textContent='登录';
+  $('auth-note').style.display='none';
+  $('auth-err').textContent='';
+});
+$('tab-register').addEventListener('click',()=>{
+  authMode='register';
+  $('tab-register').classList.add('active'); $('tab-login').classList.remove('active');
+  $('auth-submit').textContent='注册';
+  $('auth-note').style.display='';
+  $('auth-err').textContent='';
+});
+
+$('auth-submit').addEventListener('click', async()=>{
+  const uid=$('auth-userid').value.trim(), pw=$('auth-password').value;
+  const errEl=$('auth-err');
+  errEl.textContent='';
+  if(!uid||!pw){ errEl.textContent='请填写用户 ID 和密码'; return; }
+  $('auth-submit').disabled=true; $('auth-submit').textContent='请稍候…';
+  try {
+    const hash = await hashPassword(pw);
+    if(authMode==='register'){
+      // Check if user_id already exists
+      const existing = await authSelect(`user_id=eq.${encodeURIComponent(uid)}`);
+      if(existing.length>0){ errEl.textContent='该用户 ID 已存在，请直接登录'; return; }
+      // First user ever → admin, otherwise viewer
+      const allUsers = await authSelect('select=id');
+      const role = allUsers.length===0 ? 'admin' : 'viewer';
+      await authInsert({user_id:uid, role, pw_hash:hash});
+      currentUser = {user_id:uid, role};
+      saveSession(uid, role);
+      showApp();
+      showNotif(role==='admin'?'注册成功，您是第一位用户，已设为管理员 ✓':'注册成功，权限：查看者 ✓');
+    } else {
+      const rows = await authSelect(`user_id=eq.${encodeURIComponent(uid)}`);
+      if(!rows.length){ errEl.textContent='用户不存在，请先注册'; return; }
+      const user = rows[0];
+      if(user.pw_hash !== hash){ errEl.textContent='密码错误'; return; }
+      currentUser = {user_id:uid, role:user.role};
+      saveSession(uid, user.role);
+      showApp();
+    }
+  } catch(e) {
+    errEl.textContent='错误：'+e.message;
+  } finally {
+    $('auth-submit').disabled=false;
+    $('auth-submit').textContent=authMode==='login'?'登录':'注册';
+  }
+});
+
+// Enter key submits
+['auth-userid','auth-password'].forEach(id=>{
+  $(id).addEventListener('keydown',e=>{ if(e.key==='Enter') $('auth-submit').click(); });
+});
+
+// ── Session (localStorage) ───────────────────────────────────────────────
+function saveSession(uid, role){ localStorage.setItem('ssd_session', JSON.stringify({uid,role,ts:Date.now()})); }
+function loadSession(){
+  try{
+    const s=JSON.parse(localStorage.getItem('ssd_session')||'null');
+    if(s&&s.uid&&s.role&&(Date.now()-s.ts)<86400000*7) return s; // 7-day session
+  }catch(_){}
+  return null;
+}
+function clearSession(){ localStorage.removeItem('ssd_session'); }
+
+// ── Logout ───────────────────────────────────────────────────────────────
+$('logout-btn').addEventListener('click',()=>{
+  if(confirm('确认退出登录？')){
+    clearSession(); stopRealtime(); stopPolling(); location.reload();
+  }
+});
+
+// ── User management (admin only) ─────────────────────────────────────────
+async function authDelete(userId) {
+  const r = await fetch(`${API_URL}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(userId)}`, {method:'DELETE',headers:sbH()});
+  if(!r.ok) throw new Error((await r.json()).message||r.statusText);
+}
+
+const roleLabel={'admin':'管理员','normal':'普通用户','viewer':'查看者'};
+const roleClass={'admin':'role-admin','normal':'role-normal','viewer':'role-viewer'};
+
+async function loadUsersModal() {
+  const body=$('users-modal-body');
+  body.innerHTML='<div style="text-align:center;color:var(--text3);padding:20px">加载中…</div>';
+  try{
+    const users=await authSelect('order=created_at.asc');
+    if(!users.length){ body.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px">暂无用户</div>'; return; }
+    body.innerHTML=users.map(u=>`
+      <div class="user-row" data-uid="${u.user_id}">
+        <span class="user-name">${u.user_id}</span>
+        ${u.user_id===currentUser.user_id
+          ? `<span class="role-badge ${roleClass[u.role]||'role-viewer'}">${roleLabel[u.role]||u.role} (我)</span>`
+          : `<select class="role-select" data-uid="${u.user_id}">
+              <option value="admin"${u.role==='admin'?' selected':''}>管理员</option>
+              <option value="normal"${u.role==='normal'?' selected':''}>普通用户</option>
+              <option value="viewer"${u.role==='viewer'?' selected':''}>查看者</option>
+             </select>
+             <button class="action-btn btn-edit" data-action="reset-pw" data-uid="${u.user_id}" style="font-size:11px">改密</button>
+             <button class="action-btn btn-del" data-action="del-user" data-uid="${u.user_id}" style="font-size:11px">删除</button>`
+        }
+      </div>`).join('');
+
+    body.querySelectorAll('.role-select').forEach(sel=>{
+      sel.addEventListener('change',async()=>{
+        const uid=sel.dataset.uid, newRole=sel.value;
+        try{
+          await authUpdate(uid,{role:newRole});
+          showNotif(`已将 ${uid} 的权限更新为 ${roleLabel[newRole]} ✓`);
+        }catch(e){ showNotif('错误：'+e.message,true); }
+      });
+    });
+
+    body.querySelectorAll('[data-action]').forEach(btn=>{
+      btn.addEventListener('click',async()=>{
+        const uid=btn.dataset.uid, action=btn.dataset.action;
+        if(action==='del-user'){
+          if(!confirm(`确认删除用户 "${uid}"？此操作不可撤销。`)) return;
+          try{
+            await authDelete(uid);
+            showNotif(`用户 ${uid} 已删除 ✓`);
+            await loadUsersModal();
+          }catch(e){ showNotif('错误：'+e.message,true); }
+        }
+        if(action==='reset-pw'){
+          openChpwModal(uid, true); // true = admin resetting someone else
+        }
+      });
+    });
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);text-align:center;padding:20px">加载失败：${e.message}</div>`;
+  }
+}
+
+$('manage-users-btn').addEventListener('click',()=>{ openModal('users-modal'); loadUsersModal(); });
+['users-modal-close'].forEach(id=>$(id).addEventListener('click',()=>closeModal('users-modal')));
+$('users-modal').addEventListener('click',e=>{ if(e.target===$('users-modal'))closeModal('users-modal'); });
+
+// ── Change password ──────────────────────────────────────────────────────
+let chpwTargetUid = null; // null = self, string = admin resetting someone else
+
+function openChpwModal(uid=null, isAdminReset=false){
+  chpwTargetUid = uid;
+  $('chpw-modal-title').textContent = isAdminReset ? `重置密码：${uid}` : '修改密码';
+  $('chpw-old-group').style.display = isAdminReset ? 'none' : '';
+  $('chpw-old').value=''; $('chpw-new').value=''; $('chpw-confirm').value='';
+  $('chpw-err').textContent='';
+  openModal('chpw-modal');
+}
+
+$('chpw-btn').addEventListener('click',()=>openChpwModal(null, false));
+['chpw-modal-close','chpw-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('chpw-modal')));
+$('chpw-modal').addEventListener('click',e=>{ if(e.target===$('chpw-modal'))closeModal('chpw-modal'); });
+
+$('chpw-save').addEventListener('click',async()=>{
+  const oldPw=$('chpw-old').value, newPw=$('chpw-new').value, confirmPw=$('chpw-confirm').value;
+  const errEl=$('chpw-err');
+  errEl.textContent='';
+  if(!newPw||!confirmPw){ errEl.textContent='请填写新密码'; return; }
+  if(newPw!==confirmPw){ errEl.textContent='两次输入的新密码不一致'; return; }
+  if(newPw.length<4){ errEl.textContent='密码至少需要4位'; return; }
+
+  const isAdminReset=chpwTargetUid!==null;
+  const targetUid=isAdminReset?chpwTargetUid:currentUser.user_id;
+
+  $('chpw-save').disabled=true; $('chpw-save').textContent='保存中…';
+  try{
+    // For self-change: verify old password first
+    if(!isAdminReset){
+      if(!oldPw){ errEl.textContent='请输入当前密码'; return; }
+      const oldHash=await hashPassword(oldPw);
+      const rows=await authSelect(`user_id=eq.${encodeURIComponent(targetUid)}`);
+      if(!rows.length||rows[0].pw_hash!==oldHash){ errEl.textContent='当前密码错误'; return; }
+    }
+    const newHash=await hashPassword(newPw);
+    await authUpdate(targetUid,{pw_hash:newHash});
+    showNotif(isAdminReset?`已重置 ${targetUid} 的密码 ✓`:'密码修改成功 ✓');
+    closeModal('chpw-modal');
+    if(isAdminReset) await loadUsersModal();
+  }catch(e){
+    errEl.textContent='错误：'+e.message;
+  }finally{
+    $('chpw-save').disabled=false; $('chpw-save').textContent='保存';
+  }
+});// ── Boot: check session or show auth ────────────────────────────────────
+(async()=>{
+  const sess=loadSession();
+  if(sess){
+    // Re-verify user still exists and get current role
+    try{
+      const rows=await authSelect(`user_id=eq.${encodeURIComponent(sess.uid)}`);
+      if(rows.length){
+        currentUser={user_id:rows[0].user_id,role:rows[0].role};
+        showApp(); return;
+      }
+    }catch(_){}
+    clearSession();
+  }
+  // No valid session — show auth screen
+  $('auth-screen').classList.remove('hidden');
+})();
 let rtWs = null;          // WebSocket 连接
 let rtHeartbeat = null;   // ping 定时器
 let pollTimer = null;     // 轮询定时器
@@ -880,12 +1272,6 @@ function stopRealtime() {
   if (rtWs) { rtWs.onclose = null; rtWs.close(); rtWs = null; }
   rtConnected = false;
 }
-
-sbSelect('inventory').then(()=>showApp()).catch(e=>{
-  $('cfg-err').textContent='连接失败：'+e.message;
-  $('cfg-err').style.display='block';
-  $('config-screen').classList.remove('hidden');
-});
 
 $('copy-sql-btn').addEventListener('click',()=>{ navigator.clipboard.writeText($('setup-sql').textContent); $('copy-sql-btn').textContent='已复制'; setTimeout(()=>$('copy-sql-btn').textContent='复制',2000); });
 $('connect-btn').addEventListener('click',async()=>{
@@ -1178,6 +1564,7 @@ function renderInventory(){
   // store filtered rows for CSV export and update stats
   window._filteredInvRows = rows;
   updateInvStats(rows);
+  if(window._viewerMode) document.querySelectorAll('#inv-tbody .action-btn, #inv-tbody .btn-sel').forEach(b=>b.style.display='none');
 }
 
 function updateInvStats(filteredRows){
@@ -1564,6 +1951,7 @@ function renderSummary(){
   document.querySelectorAll('[id^="iss-"]').forEach(el=>el.textContent='');
   const si=$('iss-'+sumSortCol); if(si)si.textContent=sumSortAsc?' ▲':' ▼';
   window._filteredSumRows=rows;
+  if(window._viewerMode) document.querySelectorAll('#sum-tbody .action-btn').forEach(b=>b.style.display='none');
 }
 
 // Sum table sort
