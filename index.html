@@ -216,6 +216,11 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
 .role-admin{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
 .role-normal{background:rgba(0,153,255,0.1);color:var(--accent2);border:1px solid rgba(0,153,255,0.2)}
 .role-viewer{background:rgba(139,150,176,0.1);color:var(--text2);border:1px solid rgba(139,150,176,0.2)}
+
+/* ── 公司名内联编辑 ── */
+.inline-edit{width:64px;padding:3px 6px;font-size:11px;background:transparent;border:1px dashed transparent;border-radius:3px;color:var(--text);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:border .15s,background .15s}
+.inline-edit:hover{border-color:var(--border2);background:var(--surface2)}
+.inline-edit:focus{border-color:var(--accent);background:var(--surface);outline:none;box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -303,6 +308,8 @@ ALTER TABLE sales ADD COLUMN IF NOT EXISTS entry_date TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS supplier TEXT;
 ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS category TEXT;
 -- 用户角色表（需手动运行）:
 CREATE TABLE IF NOT EXISTS user_roles (
   id BIGSERIAL PRIMARY KEY,
@@ -392,11 +399,12 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th>平均成本</th><th>总数量</th>
         <th>最小包装/箱</th>
         <th class="sortable" data-col="cargo_owner">货主<span class="sort-ind" id="is-cargo_owner"></span></th>
+        <th style="min-width:72px">公司名</th>
         <th>入仓情况</th><th>LOT/DC/产地</th><th>备注</th>
       </tr></thead>
-      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="15">连接中…</td></tr></tbody>
+      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="16">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="5">合计</td>
+        <td colspan="6">合计</td>
         <td id="inv-foot-qty" class="mono">—</td><td></td>
         <td id="inv-foot-linda" class="mono">—</td>
         <td colspan="7"></td>
@@ -462,7 +470,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th>利润率</th>
         <th>备注</th>
       </tr></thead>
-      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="15">连接中…</td></tr></tbody>
+      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="16">连接中…</td></tr></tbody>
       <tfoot><tr>
         <td colspan="5">合计</td>
         <td id="sales-foot-qty" class="mono">—</td><td></td><td></td><td></td>
@@ -711,6 +719,10 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           <select class="form-input" id="fsum-biz_type"><option value="进货">进货</option><option value="销售">销售</option><option value="过水">过水</option></select>
         </div>
         <div class="form-group">
+          <label class="form-label">类别</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-category" placeholder="如 存储/闪存" autocomplete="off"><span class="cb-arrow" data-cb="fsum-category">▾</span><div class="cb-panel" id="cb-panel-fsum-category"></div></div>
+        </div>
+        <div class="form-group">
           <label class="form-label">供应商</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-supplier" placeholder="供应商名称" autocomplete="off"><span class="cb-arrow" data-cb="fsum-supplier">▾</span><div class="cb-panel" id="cb-panel-fsum-supplier"></div></div>
         </div>
@@ -719,8 +731,8 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-part_number" placeholder="料号" autocomplete="off"><span class="cb-arrow" data-cb="fsum-part_number">▾</span><div class="cb-panel" id="cb-panel-fsum-part_number"></div></div>
         </div>
         <div class="form-group"><label class="form-label">数量</label><input class="form-input" type="number" id="fsum-quantity" placeholder="0"></div>
-        <div class="form-group"><label class="form-label">下单Code</label><input class="form-input" type="text" id="fsum-order_code" placeholder="下单Code"></div>
-        <div class="form-group"><label class="form-label">付款方式</label><input class="form-input" type="text" id="fsum-payment_method" placeholder="如 电汇/现金"></div>
+        <div class="form-group"><label class="form-label">下单Code</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-order_code" placeholder="下单Code" autocomplete="off"><span class="cb-arrow" data-cb="fsum-order_code">▾</span><div class="cb-panel" id="cb-panel-fsum-order_code"></div></div></div>
+        <div class="form-group"><label class="form-label">付款方式</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-payment_method" placeholder="如 电汇/现金" autocomplete="off"><span class="cb-arrow" data-cb="fsum-payment_method">▾</span><div class="cb-panel" id="cb-panel-fsum-payment_method"></div></div></div>
         <div class="form-group"><label class="form-label">下单价</label><input class="form-input" type="number" step="0.01" id="fsum-order_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">实际进价</label><input class="form-input" type="number" step="0.01" id="fsum-actual_price" placeholder="0.00"></div>
         <div class="form-group">
@@ -729,8 +741,8 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         </div>
         <div class="form-group"><label class="form-label">售价</label><input class="form-input" type="number" step="0.01" id="fsum-sale_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">收款价格</label><input class="form-input" type="number" step="0.01" id="fsum-collection_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">收款方式</label><input class="form-input" type="text" id="fsum-collection_method" placeholder="如 转账/现金"></div>
-        <div class="form-group"><label class="form-label">接单Code</label><input class="form-input" type="text" id="fsum-receive_code" placeholder="接单Code"></div>
+        <div class="form-group"><label class="form-label">收款方式</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-collection_method" placeholder="如 转账/现金" autocomplete="off"><span class="cb-arrow" data-cb="fsum-collection_method">▾</span><div class="cb-panel" id="cb-panel-fsum-collection_method"></div></div></div>
+        <div class="form-group"><label class="form-label">接单Code</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-receive_code" placeholder="接单Code" autocomplete="off"><span class="cb-arrow" data-cb="fsum-receive_code">▾</span><div class="cb-panel" id="cb-panel-fsum-receive_code"></div></div></div>
         <div class="form-group"><label class="form-label">LOT/DC/产地</label><input class="form-input" type="text" id="fsum-lot_dc" placeholder="如 2024+/TW"></div>
         <div class="form-group"><label class="form-label">质保时间/年</label><input class="form-input" type="text" id="fsum-warranty" placeholder="如 2年"></div>
         <div class="form-group">
@@ -760,8 +772,8 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       <div class="form-grid">
         <div class="form-group"><label class="form-label">供应商（默认：库存）</label><input class="form-input" type="text" id="fss-supplier" value="库存"></div>
         <div class="form-group"><label class="form-label">收款价格</label><input class="form-input" type="number" step="0.01" id="fss-collection_price" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">收款方式</label><input class="form-input" type="text" id="fss-collection_method" placeholder="如 转账/现金"></div>
-        <div class="form-group"><label class="form-label">接单Code</label><input class="form-input" type="text" id="fss-receive_code" placeholder="接单Code"></div>
+        <div class="form-group"><label class="form-label">收款方式</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fss-collection_method" placeholder="如 转账/现金" autocomplete="off"><span class="cb-arrow" data-cb="fss-collection_method">▾</span><div class="cb-panel" id="cb-panel-fss-collection_method"></div></div></div>
+        <div class="form-group"><label class="form-label">接单Code</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fss-receive_code" placeholder="接单Code" autocomplete="off"><span class="cb-arrow" data-cb="fss-receive_code">▾</span><div class="cb-panel" id="cb-panel-fss-receive_code"></div></div></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1341,14 +1353,18 @@ function initCB(inputEl, panelEl, getOpts) {
 
 // combobox data sources (keyed by field name)
 const cbSources = {
-  'spec':             () => [...new Set([...invData,...summaryData].map(r=>r.spec).filter(Boolean))].sort(),
-  'part_number':      () => [...new Set([...invData,...summaryData].map(r=>r.part_number).filter(Boolean))].sort(),
-  'min_package':      () => [...new Set([...invData,...summaryData].map(r=>r.min_package).filter(Boolean))].sort(),
-  'cargo_owner':      () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(),
-  'category':         () => [...new Set(invData.map(r=>r.category).filter(Boolean))].sort(),
-  'supplier':         () => [...new Set([...invData,...summaryData].map(r=>r.supplier).filter(Boolean))].sort(),
-  'warehouse_status': () => [...new Set(invData.map(r=>r.warehouse_status).filter(Boolean))].sort(),
-  'buyer':            () => [...new Set([...salesData,...summaryData].map(r=>r.buyer).filter(Boolean))].sort(),
+  'spec':               () => [...new Set([...invData,...summaryData].map(r=>r.spec).filter(Boolean))].sort(),
+  'part_number':        () => [...new Set([...invData,...summaryData].map(r=>r.part_number).filter(Boolean))].sort(),
+  'min_package':        () => [...new Set([...invData,...summaryData].map(r=>r.min_package).filter(Boolean))].sort(),
+  'cargo_owner':        () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(),
+  'category':           () => [...new Set([...invData,...summaryData].map(r=>r.category).filter(Boolean))].sort(),
+  'supplier':           () => [...new Set([...invData,...summaryData].map(r=>r.supplier).filter(Boolean))].sort(),
+  'warehouse_status':   () => [...new Set(invData.map(r=>r.warehouse_status).filter(Boolean))].sort(),
+  'buyer':              () => [...new Set([...salesData,...summaryData].map(r=>r.buyer).filter(Boolean))].sort(),
+  'order_code':         () => [...new Set(summaryData.map(r=>r.order_code).filter(Boolean))].sort(),
+  'receive_code':       () => [...new Set(summaryData.map(r=>r.receive_code).filter(Boolean))].sort(),
+  'payment_method':     () => [...new Set(summaryData.map(r=>r.payment_method).filter(Boolean))].sort(),
+  'collection_method':  () => [...new Set(summaryData.map(r=>r.collection_method).filter(Boolean))].sort(),
 };
 
 // Init all comboboxes once DOM ready
@@ -1384,11 +1400,18 @@ function initAllCB() {
     const inp = $(inputId), pan = $('cb-panel-'+inputId);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
   });
-  // sum-modal comboboxes
+  // sum-modal comboboxes (including new code/method/category fields)
   [['fsum-spec','spec'],['fsum-supplier','supplier'],['fsum-part_number','part_number'],
-   ['fsum-buyer','buyer'],['fsum-min_package','min_package']].forEach(([inputId, src]) => {
+   ['fsum-buyer','buyer'],['fsum-min_package','min_package'],['fsum-category','category'],
+   ['fsum-order_code','order_code'],['fsum-payment_method','payment_method'],
+   ['fsum-receive_code','receive_code'],['fsum-collection_method','collection_method']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+inputId);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
+  });
+  // sell-summary-modal comboboxes
+  [['fss-collection_method','collection_method'],['fss-receive_code','receive_code']].forEach(([inputId,src])=>{
+    const inp=$(inputId), pan=$('cb-panel-'+inputId);
+    if(inp&&pan) initCB(inp,pan,cbSources[src]);
   });
   // fsum-part_number filtered by spec
   const fsumPartInp = $('fsum-part_number'), fsumPartPan = $('cb-panel-fsum-part_number');
@@ -1549,6 +1572,7 @@ function renderInventory(){
                  <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
+        <td><input class="inline-edit" type="text" value="${(r.company_name||''). replace(/"/g,'&quot;')}" data-action="save-company" data-id="${r.id}" placeholder="—" title="点击编辑公司名"></td>
         <td>${r.warehouse_status||''}</td>
         <td style="font-size:11px">${r.lot_dc||''}</td>
         ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
@@ -1601,6 +1625,19 @@ $('inv-tbody').addEventListener('click',async e=>{
     try{ await sbDelete('inventory',id); showNotif('已删除'); await loadInventory(); }
     catch(e){ showNotif('错误：'+e.message,true); }
   }
+});
+// 公司名内联编辑：失焦或回车保存
+$('inv-tbody').addEventListener('change',async e=>{
+  const inp=e.target.closest('[data-action="save-company"]');if(!inp)return;
+  const id=+inp.dataset.id, val=inp.value.trim()||null;
+  try{
+    await sbUpdate('inventory',id,{company_name:val});
+    const r=invData.find(x=>x.id===id); if(r)r.company_name=val;
+    showNotif('公司名已保存 ✓');
+  }catch(e){ showNotif('错误：'+e.message,true); }
+});
+$('inv-tbody').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.closest('[data-action="save-company"]')) e.target.blur();
 });
 $('inv-export-btn').addEventListener('click',()=>exportCSV(window._filteredInvRows||invData,'库存'));
 
@@ -2003,7 +2040,7 @@ $('sum-modal').addEventListener('click',e=>{ if(e.target===$('sum-modal'))closeM
 function openSumModal(id){
   sumEditId=id;
   $('sum-modal-title').textContent=id?'编辑汇总记录':'新增入库';
-  const fields=['date','spec','biz_type','supplier','part_number','quantity','order_code','payment_method','order_price','actual_price','buyer','sale_price','collection_price','collection_method','receive_code','lot_dc','warranty','min_package','delivery_date','notes'];
+  const fields=['date','spec','biz_type','category','supplier','part_number','quantity','order_code','payment_method','order_price','actual_price','buyer','sale_price','collection_price','collection_method','receive_code','lot_dc','warranty','min_package','delivery_date','notes'];
   if(id){
     const r=summaryData.find(x=>x.id===id);
     fields.forEach(f=>{ const el=$('fsum-'+f);if(el)el.value=r[f]??''; });
@@ -2019,7 +2056,7 @@ $('sum-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fsum-'+f).value.trim();
   if(!g('date')||!g('spec')||!g('biz_type')){ showNotif('请填写必填项（*）',true);return; }
   const payload={
-    date:g('date'),spec:g('spec'),biz_type:g('biz_type'),supplier:g('supplier')||null,
+    date:g('date'),spec:g('spec'),biz_type:g('biz_type'),category:g('category')||null,supplier:g('supplier')||null,
     part_number:g('part_number')||null,quantity:parseInt(g('quantity'))||null,
     order_code:g('order_code')||null,payment_method:g('payment_method')||null,
     order_price:parseFloat(g('order_price'))||null,actual_price:parseFloat(g('actual_price'))||null,
