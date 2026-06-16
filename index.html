@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>库存管理系统 · SSD</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
   --bg:#0d0f14;--surface:#13161e;--surface2:#1a1e28;--border:#252a38;--border2:#2e3547;
@@ -73,6 +74,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tab.sales-tab.active{color:var(--accent3);border-bottom-color:var(--accent3)}
 .tab.summary-tab.active{color:#a78bfa;border-bottom-color:#a78bfa}
+.tab.customers-tab.active{color:#f472b6;border-bottom-color:#f472b6}
 
 .stats-bar{display:flex;gap:1px;background:var(--border);border-bottom:1px solid var(--border);padding:0 28px;overflow-x:auto}
 .stat-card{flex:1;min-width:140px;padding:14px 18px;background:var(--surface);display:flex;flex-direction:column;gap:4px;transition:background .2s}
@@ -310,6 +312,17 @@ ALTER TABLE sales ADD COLUMN IF NOT EXISTS supplier TEXT;
 ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS company_name TEXT;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS hold_qty INTEGER DEFAULT 0;
+-- 内部客户档案表（需手动运行）:
+CREATE TABLE IF NOT EXISTS customers (
+  id BIGSERIAL PRIMARY KEY,
+  name_cn TEXT, name_en TEXT, business_reg_no TEXT, address TEXT,
+  contact_person TEXT, contact_phone TEXT,
+  bank_name TEXT, bank_account TEXT, account_name TEXT,
+  status TEXT NOT NULL DEFAULT '启用',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public_customers" ON customers FOR ALL USING (true) WITH CHECK (true);
 ALTER TABLE summary ADD COLUMN IF NOT EXISTS category TEXT;
 -- 用户角色表（需手动运行）:
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -353,6 +366,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   <div class="tab active" data-tab="inventory">📦 库存管理</div>
   <div class="tab sales-tab" data-tab="sales">💰 销售记录</div>
   <div class="tab summary-tab" data-tab="summary">📋 汇总</div>
+  <div class="tab customers-tab" data-tab="customers" style="display:none">🗂️ 客户档案</div>
 </div>
 
 <!-- 库存页 -->
@@ -846,6 +860,76 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   </div>
 </div>
 
+<!-- 客户档案页（仅管理员） -->
+<div class="page" id="page-customers">
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-label">总客户数</div><div class="stat-value" id="cust-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">启用中</div><div class="stat-value green" id="cust-active">—</div></div>
+    <div class="stat-card"><div class="stat-label">已禁用</div><div class="stat-value" style="color:var(--text3)" id="cust-disabled">—</div></div>
+  </div>
+  <div class="toolbar">
+    <input class="search-box" type="text" id="cust-search" placeholder="搜索客户名称/联系人/电话…" style="width:240px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
+      <input type="checkbox" id="cust-show-disabled" style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer">
+      显示已禁用客户
+    </label>
+    <button class="btn btn-secondary" id="cust-export-btn" style="margin-left:auto">导出 Excel</button>
+    <button class="btn btn-primary" id="cust-add-btn" style="background:#f472b6">＋ 新增客户</button>
+  </div>
+  <div class="table-container">
+    <div class="table-title" style="color:#f472b6">内部客户档案</div>
+    <table style="min-width:1400px">
+      <thead><tr style="border-bottom:2px solid #f472b6">
+        <th style="min-width:90px">操作</th>
+        <th>客户全称（中）</th>
+        <th>客户全称（英）</th>
+        <th>商业登记证编号</th>
+        <th>公司地址</th>
+        <th>联系人</th>
+        <th>联系电话</th>
+        <th>开户行名称</th>
+        <th>银行账号</th>
+        <th>账户名称</th>
+        <th>状态</th>
+      </tr></thead>
+      <tbody id="cust-tbody"><tr class="loading-msg"><td colspan="11">加载中…</td></tr></tbody>
+    </table>
+    <div class="empty-state" id="cust-empty"><div class="empty-icon">🗂️</div>暂无客户档案</div>
+  </div>
+</div>
+
+<!-- 新增/编辑客户弹窗 -->
+<div class="modal-overlay" id="cust-modal">
+  <div class="modal" style="width:680px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:#f472b6" id="cust-modal-title">新增客户</div>
+      <button class="modal-close" id="cust-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:1px;margin-bottom:10px">公司信息</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">客户全称（中文）</label><input class="form-input" type="text" id="fc-name_cn" placeholder="如 深圳市XX科技有限公司"></div>
+        <div class="form-group"><label class="form-label">客户全称（英文）</label><input class="form-input" type="text" id="fc-name_en" placeholder="如 Shenzhen XX Technology Co., Ltd."></div>
+        <div class="form-group"><label class="form-label">商业登记证编号</label><input class="form-input" type="text" id="fc-business_reg_no" placeholder="统一社会信用代码/registration no."></div>
+        <div class="form-group"><label class="form-label">联系人</label><input class="form-input" type="text" id="fc-contact_person" placeholder="联系人姓名"></div>
+        <div class="form-group"><label class="form-label">联系电话</label><input class="form-input" type="text" id="fc-contact_phone" placeholder="联系电话"></div>
+        <div class="form-group full"><label class="form-label">公司地址</label><input class="form-input" type="text" id="fc-address" placeholder="公司注册/办公地址"></div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);letter-spacing:1px;margin:20px 0 10px">银行信息</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">开户行名称</label><input class="form-input" type="text" id="fc-bank_name" placeholder="如 中国银行XX支行"></div>
+        <div class="form-group"><label class="form-label">银行账号</label><input class="form-input" type="text" id="fc-bank_account" placeholder="银行账号"></div>
+        <div class="form-group full"><label class="form-label">账户名称</label><input class="form-input" type="text" id="fc-account_name" placeholder="开户名称"></div>
+      </div>
+      <div class="config-err" id="cust-dup-warning" style="display:none;text-align:left;margin-top:16px;padding:10px 14px;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.3);border-radius:6px;color:var(--accent3)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="cust-modal-cancel">取消</button>
+      <button class="btn btn-primary" id="cust-modal-save" style="background:#f472b6">保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="notif" id="notif"></div>
 <div class="color-picker-popup" id="color-picker-popup" style="display:none"></div>
 </div>
@@ -941,25 +1025,35 @@ async function authUpdate(userId, data) {
 function applyRole(role) {
   const salesTab  = document.querySelector('.tab.sales-tab');
   const salesPage = $('page-sales');
-  const editBtns  = document.querySelectorAll('.btn-primary,.btn-sales,.btn-sel,.btn-edit,.btn-del,.action-btn');
+  const custTab   = document.querySelector('.tab.customers-tab');
+  const custPage  = $('page-customers');
 
   if (role === 'admin') {
     // Full access — show everything
     if (salesTab) salesTab.style.display = '';
+    if (custTab) custTab.style.display = '';
     $('manage-users-btn').style.display = '';
+    loadCustomers();
   } else if (role === 'normal') {
-    // Hide sales tab/page
+    // Hide sales tab/page and customers tab/page
     if (salesTab) salesTab.style.display = 'none';
     if (salesPage) salesPage.style.display = 'none';
-    // If currently on sales tab, switch to inventory
-    if (document.querySelector('.tab.sales-tab.active')) {
+    if (custTab) custTab.style.display = 'none';
+    if (custPage) custPage.style.display = 'none';
+    // If currently on sales/customers tab, switch to inventory
+    if (document.querySelector('.tab.sales-tab.active') || document.querySelector('.tab.customers-tab.active')) {
       document.querySelector('.tab[data-tab="inventory"]')?.click();
     }
     $('manage-users-btn').style.display = 'none';
   } else {
-    // viewer: hide sales tab, disable all edit buttons
+    // viewer: hide sales tab + customers tab, disable all edit buttons
     if (salesTab) salesTab.style.display = 'none';
     if (salesPage) salesPage.style.display = 'none';
+    if (custTab) custTab.style.display = 'none';
+    if (custPage) custPage.style.display = 'none';
+    if (document.querySelector('.tab.sales-tab.active') || document.querySelector('.tab.customers-tab.active')) {
+      document.querySelector('.tab[data-tab="inventory"]')?.click();
+    }
     $('manage-users-btn').style.display = 'none';
     disableEditing();
   }
@@ -2260,6 +2354,163 @@ function exportCSV(data,name){
   a.download=`SSD_${name}_${today()}.csv`; a.click();
   showNotif('CSV 导出成功');
 }
+
+// ════════════════════════════════════════
+//  内部客户档案管理（仅管理员）
+// ════════════════════════════════════════
+let customersData = [];
+let custEditId = null;
+
+async function loadCustomers(){
+  try{
+    customersData = await sbSelect('customers');
+    renderCustomers();
+  }catch(e){
+    // table may not exist yet — fail silently for non-admins, notify for admin
+    if(currentUser?.role==='admin') showNotif('客户档案加载失败：'+e.message, true);
+  }
+}
+
+function renderCustomers(){
+  const search=($('cust-search')?.value||'').toLowerCase();
+  const showDisabled=$('cust-show-disabled')?.checked;
+  let rows=customersData.filter(c=>
+    (showDisabled || c.status!=='禁用') &&
+    (!search || ['name_cn','name_en','contact_person','contact_phone'].some(f=>(c[f]||'').toLowerCase().includes(search)))
+  );
+  rows.sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+
+  $('cust-empty').style.display = rows.length ? 'none' : 'block';
+  $('cust-tbody').innerHTML = rows.map(c=>{
+    const disabled = c.status==='禁用';
+    return `<tr style="${disabled?'opacity:.55':''}">
+      <td style="display:flex;gap:4px;justify-content:center;padding:8px 12px">
+        <button class="action-btn btn-edit" data-action="cust-edit" data-id="${c.id}">编辑</button>
+        ${disabled
+          ? `<button class="action-btn btn-sel" data-action="cust-restore" data-id="${c.id}">恢复</button>`
+          : `<button class="action-btn btn-del" data-action="cust-disable" data-id="${c.id}">禁用</button>`}
+      </td>
+      <td>${c.name_cn||''}</td>
+      <td style="font-size:11px;color:var(--text2)">${c.name_en||''}</td>
+      <td class="mono" style="font-size:11px">${c.business_reg_no||''}</td>
+      <td style="max-width:160px;white-space:normal;font-size:11px;color:var(--text2)">${c.address||''}</td>
+      <td>${c.contact_person||''}</td>
+      <td class="mono">${c.contact_phone||''}</td>
+      <td style="font-size:11px">${c.bank_name||''}</td>
+      <td class="mono" style="font-size:11px">${c.bank_account||''}</td>
+      <td style="font-size:11px">${c.account_name||''}</td>
+      <td>${disabled?'<span class="tag tag-gray">禁用</span>':'<span class="tag tag-green">启用</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  $('cust-total').textContent = customersData.length;
+  $('cust-active').textContent = customersData.filter(c=>c.status!=='禁用').length;
+  $('cust-disabled').textContent = customersData.filter(c=>c.status==='禁用').length;
+
+  window._filteredCustomers = rows;
+}
+
+$('cust-search')?.addEventListener('input', renderCustomers);
+$('cust-show-disabled')?.addEventListener('change', renderCustomers);
+
+$('cust-tbody').addEventListener('click', async e=>{
+  const btn=e.target.closest('[data-action]'); if(!btn) return;
+  const id=+btn.dataset.id, action=btn.dataset.action;
+  if(action==='cust-edit') openCustModal(id);
+  if(action==='cust-disable'){
+    if(!confirm('确认禁用该客户档案？禁用后不会从列表中彻底删除，可随时恢复。')) return;
+    try{ await sbUpdate('customers',id,{status:'禁用'}); showNotif('已禁用 ✓'); await loadCustomers(); }
+    catch(e){ showNotif('错误：'+e.message,true); }
+  }
+  if(action==='cust-restore'){
+    try{ await sbUpdate('customers',id,{status:'启用'}); showNotif('已恢复为启用 ✓'); await loadCustomers(); }
+    catch(e){ showNotif('错误：'+e.message,true); }
+  }
+});
+
+// ── 新增/编辑客户弹窗 ──────────────────────────────────────────────────
+$('cust-add-btn')?.addEventListener('click', ()=>openCustModal(null));
+['cust-modal-close','cust-modal-cancel'].forEach(id=>$(id)?.addEventListener('click',()=>closeModal('cust-modal')));
+$('cust-modal')?.addEventListener('click', e=>{ if(e.target===$('cust-modal')) closeModal('cust-modal'); });
+
+const CUST_FIELDS = ['name_cn','name_en','business_reg_no','address','contact_person','contact_phone','bank_name','bank_account','account_name'];
+
+function openCustModal(id){
+  custEditId = id;
+  $('cust-modal-title').textContent = id ? '编辑客户档案' : '新增客户';
+  $('cust-dup-warning').style.display = 'none';
+  $('cust-modal-save').dataset.confirmedDup = '';
+  $('cust-modal-save').textContent = '保存';
+  if(id){
+    const c = customersData.find(x=>x.id===id);
+    CUST_FIELDS.forEach(f=>{ const el=$('fc-'+f); if(el) el.value = c?.[f] ?? ''; });
+  }else{
+    CUST_FIELDS.forEach(f=>{ const el=$('fc-'+f); if(el) el.value=''; });
+  }
+  openModal('cust-modal');
+}
+
+$('cust-modal-save').addEventListener('click', async()=>{
+  const g = f => $('fc-'+f).value.trim();
+  const nameCn = g('name_cn'), nameEn = g('name_en'), regNo = g('business_reg_no');
+  if(!nameCn && !nameEn){ showNotif('请至少填写中文或英文客户全称',true); return; }
+
+  // 去重检测：公司名（中/英）或商业登记证编号 在其他活跃记录中已存在
+  const dup = customersData.find(c=>
+    c.id!==custEditId && c.status!=='禁用' && (
+      (nameCn && c.name_cn && c.name_cn.trim()===nameCn) ||
+      (nameEn && c.name_en && c.name_en.trim()===nameEn) ||
+      (regNo && c.business_reg_no && c.business_reg_no.trim()===regNo)
+    )
+  );
+  if(dup){
+    const warnEl=$('cust-dup-warning');
+    warnEl.style.display='block';
+    warnEl.innerHTML = `⚠️ 检测到重复客户：<b>${dup.name_cn||dup.name_en||''}</b>（${dup.business_reg_no||'无登记证号'}）已存在。<br>请确认信息无误后，可再次点击保存以继续新增。`;
+    // Require a second click to confirm proceeding past the warning
+    if(!$('cust-modal-save').dataset.confirmedDup){
+      $('cust-modal-save').dataset.confirmedDup = '1';
+      $('cust-modal-save').textContent = '确认仍要保存';
+      return;
+    }
+  }
+  $('cust-modal-save').dataset.confirmedDup = '';
+  $('cust-modal-save').textContent = '保存';
+
+  const payload = {};
+  CUST_FIELDS.forEach(f=>{ payload[f] = g(f) || null; });
+  if(!custEditId) payload.status = '启用';
+
+  try{
+    custEditId ? await sbUpdate('customers',custEditId,payload) : await sbInsert('customers',payload);
+    showNotif(custEditId ? '已更新 ✓' : '已新增客户 ✓');
+    closeModal('cust-modal');
+    await loadCustomers();
+  }catch(e){ showNotif('错误：'+e.message,true); }
+});
+
+// ── Excel 导出（使用 SheetJS） ────────────────────────────────────────────
+$('cust-export-btn')?.addEventListener('click', ()=>{
+  const rows = window._filteredCustomers || customersData;
+  if(!rows.length){ showNotif('暂无数据可导出'); return; }
+  if(typeof XLSX === 'undefined'){ showNotif('Excel导出库未加载，请检查网络连接',true); return; }
+  const headerMap = {
+    name_cn:'客户全称（中）', name_en:'客户全称（英）', business_reg_no:'商业登记证编号',
+    address:'公司地址', contact_person:'联系人', contact_phone:'联系电话',
+    bank_name:'开户行名称', bank_account:'银行账号', account_name:'账户名称', status:'状态'
+  };
+  const exportRows = rows.map(c=>{
+    const o={};
+    Object.keys(headerMap).forEach(k=>{ o[headerMap[k]] = c[k] || ''; });
+    return o;
+  });
+  const ws = XLSX.utils.json_to_sheet(exportRows);
+  ws['!cols'] = Object.keys(headerMap).map(()=>({wch:18}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '客户档案');
+  XLSX.writeFile(wb, `客户档案_${today()}.xlsx`);
+  showNotif('Excel 导出成功 ✓');
+});
 </script>
 </body>
 </html>
