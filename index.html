@@ -131,6 +131,10 @@ select option{background:var(--surface)}
 .btn-del:hover{background:rgba(239,68,68,0.15)}
 
 .table-container{padding:0 28px 32px;overflow-x:auto}
+.lot-cell{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.summary-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 28px 8px}
+.summary-scroll-top>div{height:1px}
+.summary-scroll-top::-webkit-scrollbar{height:10px}
 .table-title{font-size:12px;font-weight:600;color:var(--text2);padding:18px 0 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
 .table-title.sales-title::before{background:var(--accent3)}
@@ -373,7 +377,9 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
 <div class="page active" id="page-inventory">
   <div class="stats-bar">
     <div class="stat-card"><div class="stat-label">条目数 <span id="stat-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="stat-entries">—</div></div>
-    <div class="stat-card"><div class="stat-label">总数量</div><div class="stat-value blue" id="stat-qty">—</div></div>
+    <div class="stat-card"><div class="stat-label">入库数量（实物）</div><div class="stat-value blue" id="stat-qty">—</div></div>
+    <div class="stat-card"><div class="stat-label">剩余数量（可接单）</div><div class="stat-value green" id="stat-available">—</div></div>
+    <div class="stat-card"><div class="stat-label">已锁数量</div><div class="stat-value orange" id="stat-held">—</div></div>
     <div class="stat-card"><div class="stat-label">Linda 付款总额</div><div class="stat-value orange" id="stat-linda">—</div></div>
     <div class="stat-card"><div class="stat-label">曹总 付款总额</div><div class="stat-value" style="color:#a78bfa" id="stat-cao">—</div></div>
     <div class="stat-card"><div class="stat-label">Linda/曹 付款总额</div><div class="stat-value" style="color:#34d399" id="stat-both">—</div></div>
@@ -384,6 +390,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <div class="date-display" id="inv-date"></div>
     <button class="btn btn-secondary" id="inv-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
     <input class="search-box" type="text" id="inv-search" placeholder="搜索料号/规格/货主…">
+    <input class="search-box" type="text" id="inv-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-spec-wrap">
       <div class="ms-btn" id="ms-spec-btn"><span id="ms-spec-label">全部规格</span></div>
       <div class="ms-panel" id="ms-spec-panel"></div>
@@ -408,8 +415,9 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th class="sortable" data-col="spec">规格<span class="sort-ind" id="is-spec"></span></th>
         <th class="sortable" data-col="category">类别<span class="sort-ind" id="is-category"></span></th>
         <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="is-part_number"></span></th>
-        <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="is-quantity"></span></th>
+        <th class="sortable" data-col="quantity">入库数量<span class="sort-ind" id="is-quantity"></span></th>
         <th style="min-width:90px">锁货数量</th>
+        <th style="min-width:110px">剩余数量</th>
         <th class="sortable" data-col="unit_price">单价<span class="sort-ind" id="is-unit_price"></span></th>
         <th class="sortable" data-col="linda_payment">金额<span class="sort-ind" id="is-linda_payment"></span></th>
         <th>平均成本</th><th>总数量</th>
@@ -418,12 +426,14 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th style="min-width:72px">公司名</th>
         <th>入仓情况</th><th>LOT/DC/产地</th><th>备注</th>
       </tr></thead>
-      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="17">连接中…</td></tr></tbody>
+      <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="18">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="7">合计</td>
-        <td id="inv-foot-qty" class="mono">—</td><td></td>
+        <td colspan="5">合计</td>
+        <td id="inv-foot-qty" class="mono">—</td>
+        <td id="inv-foot-held" class="mono">—</td>
+        <td id="inv-foot-available" class="mono">—</td><td></td>
         <td id="inv-foot-linda" class="mono">—</td>
-        <td colspan="7"></td>
+        <td colspan="8"></td>
       </tr></tfoot>
     </table>
     <div class="empty-state" id="inv-empty"><div class="empty-icon">📦</div>暂无记录</div>
@@ -443,6 +453,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <div class="date-display" id="sales-date"></div>
     <button class="btn btn-secondary" id="sales-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
     <input class="search-box" type="text" id="sales-search" placeholder="搜索规格/料号/客户…">
+    <input class="search-box" type="text" id="sales-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-sales-spec-wrap">
       <div class="ms-btn" id="ms-sales-spec-btn"><span id="ms-sales-spec-label">全部规格</span></div>
       <div class="ms-panel" id="ms-sales-spec-panel"></div>
@@ -476,6 +487,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th class="sortable" data-col="entry_date">进货日期<span class="sort-ind" id="ss-entry_date"></span></th>
         <th class="sortable" data-col="supplier">供应商<span class="sort-ind" id="ss-supplier"></span></th>
         <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="ss-part_number"></span></th>
+        <th class="sortable" data-col="lot_dc">LOT NO<span class="sort-ind" id="ss-lot_dc"></span></th>
         <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="ss-quantity"></span></th>
         <th class="sortable" data-col="cost_price">进价<span class="sort-ind" id="ss-cost_price"></span></th>
         <th class="sortable" data-col="sale_date">出货日期<span class="sort-ind" id="ss-sale_date"></span></th>
@@ -488,13 +500,13 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       </tr></thead>
       <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="17">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="5">合计</td>
+        <td colspan="7">合计</td>
         <td id="sales-foot-qty" class="mono">—</td><td></td><td></td><td></td>
         <td id="sales-foot-rev" class="mono">—</td>
         <td id="sales-foot-profit" class="mono">—</td>
         <td></td>
         <td id="sales-foot-margin" class="mono">—</td>
-        <td colspan="2"></td>
+        <td></td>
       </tr></tfoot>
     </table>
     <div class="empty-state" id="sales-empty"><div class="empty-icon">💰</div>暂无销售记录</div>
@@ -620,11 +632,11 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       <div class="inv-info-box" id="hold-confirm-info"></div>
       <div class="form-grid">
         <div class="form-group"><label class="form-label">出货日期 *</label><input class="form-input" type="date" id="fhc-sale_date"></div>
-        <div class="form-group"><label class="form-label">出售数量 *（锁货：<span id="fhc-hold-display">0</span>）</label><input class="form-input" type="number" id="fhc-quantity" placeholder="0" min="1"></div>
+        <div class="form-group"><label class="form-label">本次分配数量 *（锁货：<span id="fhc-hold-display">0</span>）</label><input class="form-input" type="number" id="fhc-quantity" placeholder="0" min="1"><div class="form-hint" id="fhc-remaining-hint">可分批同步给不同客户</div></div>
         <div class="form-group"><label class="form-label">售价（单价）*</label><input class="form-input" type="number" step="0.01" id="fhc-sale_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">进价（自动）</label><input class="form-input" type="number" step="0.01" id="fhc-cost_price" readonly style="background:var(--surface2)"></div>
         <div class="form-group">
-          <label class="form-label">客户</label>
+          <label class="form-label">客户 *</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fhc-buyer" placeholder="客户名称" autocomplete="off"><span class="cb-arrow" data-cb="fhc-buyer">▾</span><div class="cb-panel" id="cb-panel-fhc-buyer"></div></div>
         </div>
         <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fhc-notes" rows="2" placeholder="备注…"></textarea></div>
@@ -693,6 +705,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <div class="date-display" id="sum-date"></div>
     <button class="btn btn-secondary" id="sum-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
     <input class="search-box" type="text" id="sum-search" placeholder="搜索规格/料号/客户…">
+    <input class="search-box" type="text" id="sum-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-sum-spec-wrap">
       <div class="ms-btn" id="ms-sum-spec-btn"><span id="ms-sum-spec-label">全部规格</span></div>
       <div class="ms-panel" id="ms-sum-spec-panel"></div>
@@ -716,7 +729,8 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <button class="btn btn-secondary" id="sum-export-btn">导出 CSV</button>
     <button class="btn btn-primary" id="sum-add-btn">＋ 新增入库</button>
   </div>
-  <div class="table-container">
+  <div class="summary-scroll-top" id="summary-scroll-top" aria-label="汇总表横向滚动条"><div id="summary-scroll-spacer"></div></div>
+  <div class="table-container" id="summary-table-container">
     <div class="table-title" style="color:#a78bfa">汇总记录</div>
     <table style="min-width:1800px">
       <thead><tr id="sum-thead" style="border-bottom:2px solid #a78bfa">
@@ -1431,6 +1445,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     $('page-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='summary') requestAnimationFrame(syncSummaryScrollWidth);
   });
 });
 
@@ -1632,13 +1647,14 @@ function buildMsPanel() {
 
 // Show/hide "清除筛选" button based on whether any filter is active
 function updateClearBtn() {
-  const hasFilter = selectedSpecs.size || selectedCats.size || selectedOwners.size || $('inv-search').value;
+  const hasFilter = selectedSpecs.size || selectedCats.size || selectedOwners.size || $('inv-search').value || $('inv-lot-filter').value;
   $('inv-clear-filter-btn').style.display = hasFilter ? '' : 'none';
 }
 
 $('inv-clear-filter-btn').addEventListener('click', () => {
   selectedSpecs.clear(); selectedCats.clear(); selectedOwners.clear();
   $('inv-search').value = '';
+  $('inv-lot-filter').value = '';
   buildMsPanel();
   msSpec?.updateLabel(); msCat?.updateLabel(); msOwner?.updateLabel();
   updateClearBtn();
@@ -1646,6 +1662,7 @@ $('inv-clear-filter-btn').addEventListener('click', () => {
 });
 
 $('inv-search').addEventListener('input', () => { updateClearBtn(); renderInventory(); });
+$('inv-lot-filter').addEventListener('input', () => { updateClearBtn(); renderInventory(); });
 
 // ════════════════════════════════════════
 //  库存
@@ -1664,11 +1681,13 @@ function calcGroups(rows){
 
 function renderInventory(){
   const search=$('inv-search').value.toLowerCase();
+  const lotSearch=$('inv-lot-filter').value.trim().toLowerCase();
   let rows=invData.filter(r=>
     (selectedSpecs.size===0||selectedSpecs.has(r.spec))&&
     (selectedCats.size===0||selectedCats.has(r.category))&&
     (selectedOwners.size===0||selectedOwners.has(r.cargo_owner))&&
-    (!search||['spec','category','part_number','cargo_owner','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))
+    (!search||['spec','category','part_number','cargo_owner','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{
     if((a.spec||'')<(b.spec||''))return -1; if((a.spec||'')>(b.spec||''))return 1;
@@ -1702,6 +1721,7 @@ function renderInventory(){
             <button class="action-btn btn-del" data-action="hold-cancel" data-id="${r.id}" style="font-size:10px;padding:2px 7px" title="取消锁货">✕</button>
           `:'<span style="color:var(--text3);font-size:11px">—</span>'}
         </td>
+        <td class="mono" style="color:var(--green);font-weight:600">${fmt(Math.max(0,(r.quantity||0)-(r.hold_qty||0)))}</td>
         <td class="mono">${r.unit_price!=null?(+r.unit_price).toFixed(2):''}</td>
         <td class="mono">${r.linda_payment!=null?fmtM(r.linda_payment):''}</td>
         ${first?`<td class="mono" rowspan="${gs}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avg.toFixed(2)}</td>
@@ -1710,7 +1730,7 @@ function renderInventory(){
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
         <td><input class="inline-edit" type="text" value="${(r.company_name||''). replace(/"/g,'&quot;')}" data-action="save-company" data-id="${r.id}" placeholder="—" title="点击编辑公司名"></td>
         <td>${r.warehouse_status||''}</td>
-        <td style="font-size:11px">${r.lot_dc||''}</td>
+        <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
         ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
       </tr>`;
     }
@@ -1718,6 +1738,8 @@ function renderInventory(){
   }
   $('inv-tbody').innerHTML=html;
   $('inv-foot-qty').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
+  $('inv-foot-held').textContent=fmt(rows.reduce((s,r)=>s+(r.hold_qty||0),0));
+  $('inv-foot-available').textContent=fmt(rows.reduce((s,r)=>s+Math.max(0,(r.quantity||0)-(r.hold_qty||0)),0));
   $('inv-foot-linda').textContent=fmtM(rows.reduce((s,r)=>s+(+r.linda_payment||0),0));
   document.querySelectorAll('[id^="is-"]').forEach(el=>el.textContent='');
   const si=$('is-'+invSortCol); if(si)si.textContent=invSortAsc?' ▲':' ▼';
@@ -1733,6 +1755,8 @@ function updateInvStats(filteredRows){
   $('stat-entries').textContent = rows.length;
   $('stat-filter-badge').textContent = isFiltered ? `/ ${invData.length}` : '';
   $('stat-qty').textContent = fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
+  $('stat-held').textContent = fmt(rows.reduce((s,r)=>s+(r.hold_qty||0),0));
+  $('stat-available').textContent = fmt(rows.reduce((s,r)=>s+Math.max(0,(r.quantity||0)-(r.hold_qty||0)),0));
   $('stat-skus').textContent = new Set(rows.map(r=>r.spec)).size;
   // Payment totals by 货主 — VIC counts with LINDA; other non-special owners shown separately
   const LINDA_SET = new Set(['LINDA','VIC']);
@@ -1758,10 +1782,15 @@ $('inv-tbody').addEventListener('click',async e=>{
   if(action==='inv-edit')openInvModal(id);
   if(action==='hold-confirm') openHoldConfirmModal(id);
   if(action==='hold-cancel'){
-    if(!confirm('确认取消锁货？锁货数量将归零，归还为可用库存。'))return;
+    const row=invData.find(r=>r.id===id);
+    const held=row?.hold_qty||0;
+    const release=parseInt(prompt(`请输入本次取消订单要释放的锁货数量（当前锁货 ${fmt(held)} 件）`,held),10);
+    if(!Number.isInteger(release)||release<1){ if(release!==0&&!Number.isNaN(release))showNotif('请输入大于 0 的整数',true); return; }
+    if(release>held){ showNotif(`释放数量不能超过当前锁货（${fmt(held)} 件）`,true);return; }
+    if(!confirm(`确认释放 ${fmt(release)} 件锁货？剩余数量将增加 ${fmt(release)} 件。`))return;
     try{
-      await sbUpdate('inventory',id,{hold_qty:0});
-      showNotif('锁货已取消，库存已释放 ✓');
+      await sbUpdate('inventory',id,{hold_qty:held-release});
+      showNotif(`已释放 ${fmt(release)} 件锁货，剩余数量已恢复 ✓`);
       await loadInventory();
     }catch(e){ showNotif('错误：'+e.message,true); }
   }
@@ -1948,12 +1977,19 @@ function openHoldConfirmModal(invId){
     `锁货数量：<b style="color:var(--accent3)">${fmt(holdQty)}</b> &nbsp;|&nbsp; 总库存：<b style="color:var(--accent)">${fmt(holdConfirmRow.quantity)}</b>`;
   $('fhc-hold-display').textContent=fmt(holdQty);
   $('fhc-quantity').value=holdQty; // default = all hold
+  $('fhc-remaining-hint').textContent='可分批同步给不同客户；本次确认后剩余锁货 0 件';
   $('fhc-sale_price').value='';
   $('fhc-cost_price').value=cost.toFixed(2);
   $('fhc-buyer').value=''; $('fhc-notes').value='';
   $('fhc-sale_date').value=today();
   openModal('hold-confirm-modal');
 }
+
+$('fhc-quantity').addEventListener('input',()=>{
+  const holdQty=holdConfirmRow?.hold_qty||0;
+  const qty=parseInt($('fhc-quantity').value)||0;
+  $('fhc-remaining-hint').textContent=`可分批同步给不同客户；本次确认后剩余锁货 ${fmt(Math.max(0,holdQty-qty))} 件`;
+});
 
 $('hold-confirm-close').addEventListener('click',()=>closeModal('hold-confirm-modal'));
 $('hold-confirm-modal').addEventListener('click',e=>{ if(e.target===$('hold-confirm-modal'))closeModal('hold-confirm-modal'); });
@@ -1969,6 +2005,7 @@ $('hold-confirm-save').addEventListener('click',async()=>{
   if(qty>holdQty){ showNotif(`出售数量不能超过锁货数量（${fmt(holdQty)}件）`,true);return; }
   const cp=parseFloat($('fhc-cost_price').value)||null;
   const buyer=$('fhc-buyer').value.trim()||null;
+  if(!buyer){ showNotif('锁货出货必须填写客户，才能分别同步销售记录和汇总',true);return; }
   const notes=$('fhc-notes').value.trim()||null;
   const newQty=holdConfirmRow.quantity-qty;
   const newHold=holdQty-qty;
@@ -2006,13 +2043,15 @@ async function loadSales(){
 
 function renderSales(){
   const search=$('sales-search').value.toLowerCase();
+  const lotSearch=$('sales-lot-filter').value.trim().toLowerCase();
   let rows=salesData.filter(r=>
     (selectedSalesSpecs.size===0||selectedSalesSpecs.has(r.spec))&&
     (selectedSalesCats.size===0||selectedSalesCats.has(r.category))&&
     (selectedSalesPn.size===0||selectedSalesPn.has(r.part_number))&&
     (selectedSalesSupplier.size===0||selectedSalesSupplier.has(r.supplier))&&
     (selectedSalesBuyer.size===0||selectedSalesBuyer.has(r.buyer))&&
-    (!search||['spec','category','part_number','buyer','supplier','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))
+    (!search||['spec','category','part_number','buyer','supplier','lot_dc','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{ let av=a[salesSortCol]??'',bv=b[salesSortCol]??''; return salesSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sales-empty').style.display=rows.length?'none':'block';
@@ -2033,6 +2072,7 @@ function renderSales(){
       <td class="mono">${r.entry_date||''}</td>
       <td>${r.supplier||''}</td>
       <td class="mono" style="font-size:10px">${r.part_number||''}</td>
+      <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
       <td class="mono">${fmt(r.quantity)}</td>
       <td class="mono">${r.cost_price!=null?(+r.cost_price).toFixed(2):''}</td>
       <td class="mono">${r.sale_date||''}</td>
@@ -2072,7 +2112,7 @@ let selectedSalesSpecs=new Set(), selectedSalesCats=new Set(),
     selectedSalesPn=new Set(), selectedSalesSupplier=new Set(), selectedSalesBuyer=new Set();
 
 function updateSalesClearBtn(){
-  const has=selectedSalesSpecs.size||selectedSalesCats.size||selectedSalesPn.size||selectedSalesSupplier.size||selectedSalesBuyer.size||$('sales-search').value;
+  const has=selectedSalesSpecs.size||selectedSalesCats.size||selectedSalesPn.size||selectedSalesSupplier.size||selectedSalesBuyer.size||$('sales-search').value||$('sales-lot-filter').value;
   $('sales-clear-filter-btn').style.display=has?'':'none';
 }
 
@@ -2093,11 +2133,13 @@ function refreshSalesFilters(){ buildSalesMsPanel(); }
 $('sales-clear-filter-btn').addEventListener('click',()=>{
   [selectedSalesSpecs,selectedSalesCats,selectedSalesPn,selectedSalesSupplier,selectedSalesBuyer].forEach(s=>s.clear());
   $('sales-search').value='';
+  $('sales-lot-filter').value='';
   buildSalesMsPanel();
   [msSalesSpec,msSalesCat,msSalesPn,msSalesSupplier,msSalesBuyer].forEach(m=>m?.updateLabel());
   updateSalesClearBtn(); renderSales();
 });
 $('sales-search').addEventListener('input',()=>{ updateSalesClearBtn(); renderSales(); });
+$('sales-lot-filter').addEventListener('input',()=>{ updateSalesClearBtn(); renderSales(); });
 $('sales-thead').addEventListener('click',e=>{ const th=e.target.closest('th.sortable');if(!th)return; salesSortCol===th.dataset.col?salesSortAsc=!salesSortAsc:(salesSortCol=th.dataset.col,salesSortAsc=true); renderSales(); });
 
 $('sales-tbody').addEventListener('click',async e=>{
@@ -2159,13 +2201,15 @@ let selSumSpec=new Set(),selSumBiz=new Set(),selSumSupplier=new Set(),selSumPn=n
 
 function renderSummary(){
   const search=$('sum-search').value.toLowerCase();
+  const lotSearch=$('sum-lot-filter').value.trim().toLowerCase();
   let rows=summaryData.filter(r=>
     (selSumSpec.size===0||selSumSpec.has(r.spec))&&
     (selSumBiz.size===0||selSumBiz.has(r.biz_type))&&
     (selSumSupplier.size===0||selSumSupplier.has(r.supplier))&&
     (selSumPn.size===0||selSumPn.has(r.part_number))&&
     (selSumBuyer.size===0||selSumBuyer.has(r.buyer))&&
-    (!search||['spec','supplier','part_number','buyer','order_code','receive_code','lot_dc','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))
+    (!search||['spec','supplier','part_number','buyer','order_code','receive_code','lot_dc','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{ let av=a[sumSortCol]??'',bv=b[sumSortCol]??''; return sumSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sum-empty').style.display=rows.length?'none':'block';
@@ -2195,7 +2239,7 @@ function renderSummary(){
     <td class="mono" style="color:var(--green)">${(r.sale_price!=null&&r.quantity!=null)?fmtM((+r.sale_price)*(+r.quantity)):''}</td>
     <td>${r.collection_method||''}</td>
     <td>${r.receive_code||''}</td>
-    <td style="font-size:11px">${r.lot_dc||''}</td>
+    <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
     <td>${r.warranty||''}</td>
     <td style="font-size:11px">${r.min_package||''}</td>
     <td class="mono">${r.delivery_date||''}</td>
@@ -2236,7 +2280,7 @@ $('sum-tbody').addEventListener('click',async e=>{
 
 // Sum multi-select filters
 function updateSumClearBtn(){
-  const has=selSumSpec.size||selSumBiz.size||selSumSupplier.size||selSumPn.size||selSumBuyer.size||$('sum-search').value;
+  const has=selSumSpec.size||selSumBiz.size||selSumSupplier.size||selSumPn.size||selSumBuyer.size||$('sum-search').value||$('sum-lot-filter').value;
   $('sum-clear-filter-btn').style.display=has?'':'none';
 }
 const msSumSpec     =buildMsGeneric('ms-sum-spec-wrap',    'ms-sum-spec-btn',    'ms-sum-spec-label',    'ms-sum-spec-panel',    ()=>[...new Set(summaryData.map(r=>r.spec).filter(Boolean))].sort(),        selSumSpec,    '全部规格',  ()=>{ updateSumClearBtn(); renderSummary(); });
@@ -2250,11 +2294,31 @@ function buildSumMsPanels(){ [msSumSpec,msSumBiz,msSumSupplier,msSumPn,msSumBuye
 $('sum-clear-filter-btn').addEventListener('click',()=>{
   [selSumSpec,selSumBiz,selSumSupplier,selSumPn,selSumBuyer].forEach(s=>s.clear());
   $('sum-search').value='';
+  $('sum-lot-filter').value='';
   buildSumMsPanels();
   [msSumSpec,msSumBiz,msSumSupplier,msSumPn,msSumBuyer].forEach(m=>m?.updateLabel());
   updateSumClearBtn(); renderSummary();
 });
 $('sum-search').addEventListener('input',()=>{ updateSumClearBtn(); renderSummary(); });
+$('sum-lot-filter').addEventListener('input',()=>{ updateSumClearBtn(); renderSummary(); });
+
+const summaryScrollTop=$('summary-scroll-top');
+const summaryTableContainer=$('summary-table-container');
+let syncingSummaryScroll=false;
+function syncSummaryScrollWidth(){
+  const table=summaryTableContainer.querySelector('table');
+  $('summary-scroll-spacer').style.width=`${table.scrollWidth}px`;
+}
+summaryScrollTop.addEventListener('scroll',()=>{
+  if(syncingSummaryScroll)return;
+  syncingSummaryScroll=true; summaryTableContainer.scrollLeft=summaryScrollTop.scrollLeft; syncingSummaryScroll=false;
+});
+summaryTableContainer.addEventListener('scroll',()=>{
+  if(syncingSummaryScroll)return;
+  syncingSummaryScroll=true; summaryScrollTop.scrollLeft=summaryTableContainer.scrollLeft; syncingSummaryScroll=false;
+});
+window.addEventListener('resize',syncSummaryScrollWidth);
+syncSummaryScrollWidth();
 $('sum-export-btn').addEventListener('click',()=>exportCSV(window._filteredSumRows||summaryData,'汇总'));
 $('sum-date').textContent=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})+' 汇总';
 
