@@ -130,11 +130,15 @@ select option{background:var(--surface)}
 .btn-del{background:rgba(239,68,68,0.08);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
 .btn-del:hover{background:rgba(239,68,68,0.15)}
 
-.table-container{padding:0 28px 32px;overflow-x:auto}
+.table-container{
+  padding:0 28px 12px;
+  max-height:var(--grid-max-height,65vh);
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable both-edges;
+  border-bottom:1px solid var(--border);
+}
 .lot-cell{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
-.summary-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 28px 8px}
-.summary-scroll-top>div{height:1px}
-.summary-scroll-top::-webkit-scrollbar{height:10px}
 .table-title{font-size:12px;font-weight:600;color:var(--text2);padding:18px 0 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
 .table-title.sales-title::before{background:var(--accent3)}
@@ -142,6 +146,17 @@ table{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px}
 thead tr{background:var(--surface2);border-bottom:2px solid var(--accent)}
 thead tr.sales-head{border-bottom-color:var(--accent3)}
 th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;user-select:none}
+.table-container thead th{position:sticky;top:0;z-index:5;background:var(--surface2);box-shadow:0 1px 0 var(--border)}
+.table-container th:first-child,.table-container tbody td:first-child,.table-container tfoot td:first-child{
+  position:sticky;
+  left:0;
+  z-index:4;
+  background:var(--surface);
+  box-shadow:1px 0 0 var(--border),6px 0 12px rgba(0,0,0,.08);
+}
+.table-container thead th:first-child{z-index:7;background:var(--surface2)}
+.table-container tfoot td:first-child{z-index:6;background:var(--surface2)}
+.table-container tbody tr:hover td:first-child{background:var(--surface2)}
 th.sortable{cursor:pointer}th.sortable:hover{color:var(--accent)}
 tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
 tbody tr:hover{background:var(--surface2)}
@@ -227,7 +242,7 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
 .inline-edit{width:64px;padding:3px 6px;font-size:11px;background:transparent;border:1px dashed transparent;border-radius:3px;color:var(--text);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:border .15s,background .15s}
 .inline-edit:hover{border-color:var(--border2);background:var(--surface2)}
 .inline-edit:focus{border-color:var(--accent);background:var(--surface);outline:none;box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
-::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar{width:8px;height:10px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
@@ -729,8 +744,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <button class="btn btn-secondary" id="sum-export-btn">导出 CSV</button>
     <button class="btn btn-primary" id="sum-add-btn">＋ 新增入库</button>
   </div>
-  <div class="summary-scroll-top" id="summary-scroll-top" aria-label="汇总表横向滚动条"><div id="summary-scroll-spacer"></div></div>
-  <div class="table-container" id="summary-table-container">
+  <div class="table-container">
     <div class="table-title" style="color:#a78bfa">汇总记录</div>
     <table style="min-width:1800px">
       <thead><tr id="sum-thead" style="border-bottom:2px solid #a78bfa">
@@ -1092,6 +1106,7 @@ function showApp() {
   $('logout-btn').style.display='';
   loadInventory(); loadSales(); loadSummary(); startRealtime();
   applyRole(currentUser?.role || 'viewer');
+  requestAnimationFrame(fitTableViewports);
 }
 
 // ── Auth screen logic ────────────────────────────────────────────────────
@@ -1445,7 +1460,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     $('page-'+tab.dataset.tab).classList.add('active');
-    if(tab.dataset.tab==='summary') requestAnimationFrame(syncSummaryScrollWidth);
+    requestAnimationFrame(fitTableViewports);
   });
 });
 
@@ -2301,26 +2316,26 @@ $('sum-clear-filter-btn').addEventListener('click',()=>{
 });
 $('sum-search').addEventListener('input',()=>{ updateSumClearBtn(); renderSummary(); });
 $('sum-lot-filter').addEventListener('input',()=>{ updateSumClearBtn(); renderSummary(); });
-
-const summaryScrollTop=$('summary-scroll-top');
-const summaryTableContainer=$('summary-table-container');
-let syncingSummaryScroll=false;
-function syncSummaryScrollWidth(){
-  const table=summaryTableContainer.querySelector('table');
-  $('summary-scroll-spacer').style.width=`${table.scrollWidth}px`;
-}
-summaryScrollTop.addEventListener('scroll',()=>{
-  if(syncingSummaryScroll)return;
-  syncingSummaryScroll=true; summaryTableContainer.scrollLeft=summaryScrollTop.scrollLeft; syncingSummaryScroll=false;
-});
-summaryTableContainer.addEventListener('scroll',()=>{
-  if(syncingSummaryScroll)return;
-  syncingSummaryScroll=true; summaryScrollTop.scrollLeft=summaryTableContainer.scrollLeft; syncingSummaryScroll=false;
-});
-window.addEventListener('resize',syncSummaryScrollWidth);
-syncSummaryScrollWidth();
 $('sum-export-btn').addEventListener('click',()=>exportCSV(window._filteredSumRows||summaryData,'汇总'));
 $('sum-date').textContent=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})+' 汇总';
+
+// Excel-style table workspace: keep both axes reachable at every browser zoom level.
+function fitTableViewports(){
+  document.querySelectorAll('.page.active .table-container').forEach(container=>{
+    const available=Math.max(160,window.innerHeight-container.getBoundingClientRect().top-12);
+    container.style.setProperty('--grid-max-height',`${available}px`);
+  });
+}
+document.querySelectorAll('.table-container').forEach(container=>{
+  container.addEventListener('wheel',e=>{
+    if(!e.shiftKey||Math.abs(e.deltaY)<=Math.abs(e.deltaX)||container.scrollWidth<=container.clientWidth)return;
+    e.preventDefault();
+    container.scrollLeft+=e.deltaY;
+  },{passive:false});
+});
+window.addEventListener('resize',fitTableViewports);
+window.addEventListener('load',fitTableViewports);
+fitTableViewports();
 
 // ── Sum modal ────────────────────────────────────────────────────────────
 let sumEditId=null;
