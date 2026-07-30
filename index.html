@@ -139,6 +139,8 @@ select option{background:var(--surface)}
   border-bottom:1px solid var(--border);
 }
 .lot-cell{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.lot-cell-btn{width:100%;padding:3px 6px;text-align:left;color:var(--accent2);background:transparent;border:1px dashed transparent;border-radius:3px;cursor:pointer}
+.lot-cell-btn:hover{border-color:var(--accent2);background:rgba(0,153,255,.08)}
 .table-title{font-size:12px;font-weight:600;color:var(--text2);padding:18px 0 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
 .table-title.sales-title::before{background:var(--accent3)}
@@ -146,6 +148,12 @@ table{width:100%;border-collapse:collapse;font-size:12px;min-width:1100px}
 thead tr{background:var(--surface2);border-bottom:2px solid var(--accent)}
 thead tr.sales-head{border-bottom-color:var(--accent3)}
 th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;user-select:none}
+.table-container th{position:relative}
+.col-resizer{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:9;touch-action:none}
+.col-resizer::after{content:'';position:absolute;top:20%;bottom:20%;left:3px;width:1px;background:var(--border2);opacity:.35}
+.col-resizer:hover::after,.col-resizer.resizing::after{background:var(--accent2);opacity:1;width:2px}
+.table-container td{overflow:hidden;text-overflow:ellipsis}
+body.resizing-column{cursor:col-resize;user-select:none}
 .table-container thead th{position:sticky;top:0;z-index:5;background:var(--surface2);box-shadow:0 1px 0 var(--border)}
 .table-container th:first-child,.table-container tbody td:first-child,.table-container tfoot td:first-child{
   position:sticky;
@@ -395,10 +403,10 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <div class="stat-card"><div class="stat-label">入库数量（实物）</div><div class="stat-value blue" id="stat-qty">—</div></div>
     <div class="stat-card"><div class="stat-label">剩余数量（可接单）</div><div class="stat-value green" id="stat-available">—</div></div>
     <div class="stat-card"><div class="stat-label">已锁数量</div><div class="stat-value orange" id="stat-held">—</div></div>
-    <div class="stat-card"><div class="stat-label">Linda 付款总额</div><div class="stat-value orange" id="stat-linda">—</div></div>
-    <div class="stat-card"><div class="stat-label">曹总 付款总额</div><div class="stat-value" style="color:#a78bfa" id="stat-cao">—</div></div>
-    <div class="stat-card"><div class="stat-label">Linda/曹 付款总额</div><div class="stat-value" style="color:#34d399" id="stat-both">—</div></div>
-    <div class="stat-card"><div class="stat-label">其他货主 付款总额</div><div class="stat-value" style="color:#f472b6" id="stat-other">—</div></div>
+    <div class="stat-card"><div class="stat-label">Linda 剩余货值</div><div class="stat-value orange" id="stat-linda">—</div></div>
+    <div class="stat-card"><div class="stat-label">曹总 剩余货值</div><div class="stat-value" style="color:#a78bfa" id="stat-cao">—</div></div>
+    <div class="stat-card"><div class="stat-label">Linda/曹 剩余货值</div><div class="stat-value" style="color:#34d399" id="stat-both">—</div></div>
+    <div class="stat-card"><div class="stat-label">其他货主 剩余货值</div><div class="stat-value" style="color:#f472b6" id="stat-other">—</div></div>
     <div class="stat-card"><div class="stat-label">规格种类</div><div class="stat-value green" id="stat-skus">—</div></div>
   </div>
   <div class="toolbar">
@@ -562,7 +570,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fi-quantity" placeholder="0"></div>
         <div class="form-group"><label class="form-label">单价</label><input class="form-input" type="number" step="0.01" id="fi-unit_price" placeholder="0.00"></div>
         <div class="form-group">
-          <label class="form-label">Linda 付款金额（自动 = 数量 × 单价）</label>
+          <label class="form-label">库存金额（自动 = 剩余数量 × 单价）</label>
           <input class="form-input" type="number" step="0.01" id="fi-linda_payment" readonly style="color:var(--accent3);background:var(--surface2)">
         </div>
         <div class="form-group">
@@ -581,6 +589,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
             <div class="cb-panel" id="cb-panel-cargo_owner"></div>
           </div>
         </div>
+        <div class="form-group"><label class="form-label">公司名</label><input class="form-input" type="text" id="fi-company_name" placeholder="公司名称"></div>
         <div class="form-group">
           <label class="form-label">入仓情况</label>
           <div class="cb-wrap" id="cb-wrap-warehouse_status">
@@ -599,6 +608,25 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <div class="modal-footer">
       <button class="btn btn-secondary" id="inv-modal-cancel">取消</button>
       <button class="btn btn-primary" id="inv-modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOT/DC 展开编辑弹窗 -->
+<div class="modal-overlay" id="lot-modal">
+  <div class="modal" style="width:620px">
+    <div class="modal-header"><div class="modal-title">LOT/DC/产地明细</div><button class="modal-close" id="lot-modal-close">✕</button></div>
+    <div class="modal-body">
+      <div class="inv-info-box" id="lot-modal-info"></div>
+      <div class="form-group">
+        <label class="form-label">LOT/DC/产地</label>
+        <textarea class="form-input mono" id="lot-modal-value" rows="10" placeholder="可输入多行 LOT/DC/产地信息"></textarea>
+        <div class="form-hint">支持多行内容；保存后列表保持单行缩略显示，点击可再次展开。</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="lot-modal-cancel">取消</button>
+      <button class="btn btn-primary" id="lot-modal-save">保存修改</button>
     </div>
   </div>
 </div>
@@ -1106,7 +1134,7 @@ function showApp() {
   $('logout-btn').style.display='';
   loadInventory(); loadSales(); loadSummary(); startRealtime();
   applyRole(currentUser?.role || 'viewer');
-  requestAnimationFrame(fitTableViewports);
+  requestAnimationFrame(()=>{fitTableViewports();setupResizableTables();});
 }
 
 // ── Auth screen logic ────────────────────────────────────────────────────
@@ -1323,7 +1351,10 @@ const POLL_INTERVAL = 8000; // 轮询间隔 ms（Realtime 断连时启用）
 
 // 上次各表哈希，用于判断数据是否真正变化（避免无谓重渲）
 let lastInvHash = '', lastSalesHash = '', lastSumHash = '';
-function hashArr(arr){ return arr.map(r=>r.id+'|'+(r.quantity??'')+'|'+(r.unit_price??'')+'|'+(r.linda_payment??'')+'|'+(r.status??'')).join(','); }
+function hashArr(arr){ return arr.map(r=>[
+  r.id,r.quantity,r.hold_qty,r.unit_price,r.linda_payment,r.status,
+  r.category,r.company_name,r.lot_dc,r.buyer,r.notes
+].map(v=>v??'').join('|')).join(','); }
 
 function setStatus(mode) {
   const dot = $('live-dot'), lbl = $('live-label');
@@ -1460,7 +1491,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     $('page-'+tab.dataset.tab).classList.add('active');
-    requestAnimationFrame(fitTableViewports);
+    requestAnimationFrame(()=>{fitTableViewports();setupResizableTables();});
   });
 });
 
@@ -1694,6 +1725,11 @@ function calcGroups(rows){
   return g;
 }
 
+function inventoryAmount(r){
+  const available=Math.max(0,(+r.quantity||0)-(+r.hold_qty||0));
+  return available*(+r.unit_price||0);
+}
+
 function renderInventory(){
   const search=$('inv-search').value.toLowerCase();
   const lotSearch=$('inv-lot-filter').value.trim().toLowerCase();
@@ -1738,14 +1774,14 @@ function renderInventory(){
         </td>
         <td class="mono" style="color:var(--green);font-weight:600">${fmt(Math.max(0,(r.quantity||0)-(r.hold_qty||0)))}</td>
         <td class="mono">${r.unit_price!=null?(+r.unit_price).toFixed(2):''}</td>
-        <td class="mono">${r.linda_payment!=null?fmtM(r.linda_payment):''}</td>
+        <td class="mono">${r.unit_price!=null?fmtM(inventoryAmount(r)):''}</td>
         ${first?`<td class="mono" rowspan="${gs}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avg.toFixed(2)}</td>
                  <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
         <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
         <td><input class="inline-edit" type="text" value="${(r.company_name||''). replace(/"/g,'&quot;')}" data-action="save-company" data-id="${r.id}" placeholder="—" title="点击编辑公司名"></td>
         <td>${r.warehouse_status||''}</td>
-        <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
+        <td><button class="lot-cell lot-cell-btn" data-action="edit-lot" data-id="${r.id}" title="点击展开 LOT/DC/产地">${r.lot_dc||'点击填写'}</button></td>
         ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
       </tr>`;
     }
@@ -1755,11 +1791,11 @@ function renderInventory(){
   $('inv-foot-qty').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
   $('inv-foot-held').textContent=fmt(rows.reduce((s,r)=>s+(r.hold_qty||0),0));
   $('inv-foot-available').textContent=fmt(rows.reduce((s,r)=>s+Math.max(0,(r.quantity||0)-(r.hold_qty||0)),0));
-  $('inv-foot-linda').textContent=fmtM(rows.reduce((s,r)=>s+(+r.linda_payment||0),0));
+  $('inv-foot-linda').textContent=fmtM(rows.reduce((s,r)=>s+inventoryAmount(r),0));
   document.querySelectorAll('[id^="is-"]').forEach(el=>el.textContent='');
   const si=$('is-'+invSortCol); if(si)si.textContent=invSortAsc?' ▲':' ▼';
   // store filtered rows for CSV export and update stats
-  window._filteredInvRows = rows;
+  window._filteredInvRows = rows.map(r=>({...r,linda_payment:inventoryAmount(r)}));
   updateInvStats(rows);
   if(window._viewerMode) document.querySelectorAll('#inv-tbody .action-btn, #inv-tbody .btn-sel').forEach(b=>b.style.display='none');
 }
@@ -1775,11 +1811,11 @@ function updateInvStats(filteredRows){
   $('stat-skus').textContent = new Set(rows.map(r=>r.spec)).size;
   // Payment totals by 货主 — VIC counts with LINDA; other non-special owners shown separately
   const LINDA_SET = new Set(['LINDA','VIC']);
-  const linda = rows.filter(r=>LINDA_SET.has(r.cargo_owner)).reduce((s,r)=>s+(+r.linda_payment||0),0);
-  const cao   = rows.filter(r=>r.cargo_owner==='曹总').reduce((s,r)=>s+(+r.linda_payment||0),0);
-  const both  = rows.filter(r=>r.cargo_owner==='LINDA/曹').reduce((s,r)=>s+(+r.linda_payment||0),0);
+  const linda = rows.filter(r=>LINDA_SET.has(r.cargo_owner)).reduce((s,r)=>s+inventoryAmount(r),0);
+  const cao   = rows.filter(r=>r.cargo_owner==='曹总').reduce((s,r)=>s+inventoryAmount(r),0);
+  const both  = rows.filter(r=>r.cargo_owner==='LINDA/曹').reduce((s,r)=>s+inventoryAmount(r),0);
   const special = new Set(['LINDA','VIC','曹总','LINDA/曹']);
-  const other = rows.filter(r=>r.cargo_owner&&!special.has(r.cargo_owner)).reduce((s,r)=>s+(+r.linda_payment||0),0);
+  const other = rows.filter(r=>r.cargo_owner&&!special.has(r.cargo_owner)).reduce((s,r)=>s+inventoryAmount(r),0);
   $('stat-linda').textContent = '¥'+fmtM(linda);
   $('stat-cao').textContent   = '¥'+fmtM(cao);
   $('stat-both').textContent  = '¥'+fmtM(both);
@@ -1795,6 +1831,7 @@ $('inv-tbody').addEventListener('click',async e=>{
   const id=+btn.dataset.id,action=btn.dataset.action;
   if(action==='sel')openSellModal(id);
   if(action==='inv-edit')openInvModal(id);
+  if(action==='edit-lot')openLotModal(id);
   if(action==='hold-confirm') openHoldConfirmModal(id);
   if(action==='hold-cancel'){
     const row=invData.find(r=>r.id===id);
@@ -1804,7 +1841,8 @@ $('inv-tbody').addEventListener('click',async e=>{
     if(release>held){ showNotif(`释放数量不能超过当前锁货（${fmt(held)} 件）`,true);return; }
     if(!confirm(`确认释放 ${fmt(release)} 件锁货？剩余数量将增加 ${fmt(release)} 件。`))return;
     try{
-      await sbUpdate('inventory',id,{hold_qty:held-release});
+      const newHold=held-release;
+      await sbUpdate('inventory',id,{hold_qty:newHold,linda_payment:inventoryAmount({...row,hold_qty:newHold})});
       showNotif(`已释放 ${fmt(release)} 件锁货，剩余数量已恢复 ✓`);
       await loadInventory();
     }catch(e){ showNotif('错误：'+e.message,true); }
@@ -1830,22 +1868,45 @@ $('inv-tbody').addEventListener('keydown',e=>{
 });
 $('inv-export-btn').addEventListener('click',()=>exportCSV(window._filteredInvRows||invData,'库存'));
 
+let lotEditRow=null;
+function openLotModal(id){
+  lotEditRow=invData.find(r=>r.id===id);if(!lotEditRow)return;
+  $('lot-modal-info').innerHTML=`规格：<b>${lotEditRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b>${lotEditRow.part_number||''}</b>`;
+  $('lot-modal-value').value=lotEditRow.lot_dc||'';
+  $('lot-modal-value').readOnly=!!window._viewerMode;
+  $('lot-modal-save').style.display=window._viewerMode?'none':'';
+  openModal('lot-modal');
+}
+['lot-modal-close','lot-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('lot-modal')));
+$('lot-modal').addEventListener('click',e=>{if(e.target===$('lot-modal'))closeModal('lot-modal');});
+$('lot-modal-save').addEventListener('click',async()=>{
+  if(!lotEditRow)return;
+  const value=$('lot-modal-value').value.trim()||null;
+  try{
+    await sbUpdate('inventory',lotEditRow.id,{lot_dc:value});
+    lotEditRow.lot_dc=value;
+    closeModal('lot-modal'); renderInventory();
+    showNotif('LOT/DC/产地已保存 ✓');
+  }catch(e){showNotif('保存失败：'+e.message,true);}
+});
+
 // ── 入库弹窗 ─────────────────────────────
 $('inv-add-btn').addEventListener('click',()=>openInvModal(null));
 ['inv-modal-close','inv-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('inv-modal')));
 $('inv-modal').addEventListener('click',e=>{ if(e.target===$('inv-modal'))closeModal('inv-modal'); });
 
-// Linda 付款金额自动计算 = 数量 × 单价
+// 库存金额自动计算 = 剩余可接单数量 × 单价
 function calcLinda(){
   const q=parseFloat($('fi-quantity').value)||0, p=parseFloat($('fi-unit_price').value)||0;
-  $('fi-linda_payment').value=q&&p?(q*p).toFixed(2):'';
+  const hold=invEditId?(invData.find(r=>r.id===invEditId)?.hold_qty||0):0;
+  $('fi-linda_payment').value=q&&p?(Math.max(0,q-hold)*p).toFixed(2):'';
 }
 ['fi-quantity','fi-unit_price'].forEach(id=>$(id).addEventListener('input',calcLinda));
 
 function openInvModal(id){
   invEditId=id;
   $('inv-modal-title').textContent=id?'编辑入库记录':'新增入库';
-  const fields=['entry_date','spec','category','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','warehouse_status','lot_dc','notes'];
+  const fields=['entry_date','spec','category','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','company_name','warehouse_status','lot_dc','notes'];
   if(id){
     const r=invData.find(x=>x.id===id);
     fields.forEach(f=>{ const el=$('fi-'+f);if(el)el.value=r[f]??''; });
@@ -1861,7 +1922,8 @@ $('inv-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fi-'+f).value.trim();
   if(!g('entry_date')||!g('spec')||!g('part_number')){ showNotif('请填写必填项（*）',true);return; }
   const qty=parseInt(g('quantity'))||0, price=parseFloat(g('unit_price'))||null;
-  const linda=qty&&price?qty*price:(parseFloat(g('linda_payment'))||null);
+  const hold=invEditId?(invData.find(r=>r.id===invEditId)?.hold_qty||0):0;
+  const linda=qty&&price?Math.max(0,qty-hold)*price:(parseFloat(g('linda_payment'))||null);
   try{
     const spec=g('spec'), newNote=g('notes')||null;
     // For new entries: concat with existing shared note; for edits: replace
@@ -1872,7 +1934,7 @@ $('inv-modal-save').addEventListener('click',async()=>{
         finalNote=existing.notes+'\n'+newNote;
       }
     }
-    const payload={entry_date:g('entry_date'),spec,category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,warehouse_status:g('warehouse_status')||null,lot_dc:g('lot_dc')||null,notes:finalNote};
+    const payload={entry_date:g('entry_date'),spec,category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,company_name:g('company_name')||null,warehouse_status:g('warehouse_status')||null,lot_dc:g('lot_dc')||null,notes:finalNote};
     invEditId?await sbUpdate('inventory',invEditId,payload):await sbInsert('inventory',payload);
     // Sync combined note to all other entries with the same 规格
     const sameSpec=invData.filter(r=>r.spec===spec&&r.id!==invEditId&&r.notes!==finalNote);
@@ -1930,7 +1992,8 @@ $('sell-modal-hold').addEventListener('click',async()=>{
   const available=totalStock-currentHold;
   if(qty>available){ showNotif(`超出可用库存（${fmt(available)}件）`,true);return; }
   try{
-    await sbUpdate('inventory',sellInvRow.id,{hold_qty:currentHold+qty});
+    const newHold=currentHold+qty;
+    await sbUpdate('inventory',sellInvRow.id,{hold_qty:newHold,linda_payment:inventoryAmount({...sellInvRow,hold_qty:newHold})});
     showNotif(`已锁货 ${fmt(qty)} 件 ✓`);
     closeModal('sell-modal');
     await loadInventory();
@@ -1964,9 +2027,9 @@ async function executeSale(sumExtra){
   const {qty,sp,cp,newQty,keepHold,saleDate,buyer,notes} = pendingSale;
   try{
     if(newQty===0&&keepHold===0) await sbDelete('inventory',sellInvRow.id);
-    else await sbUpdate('inventory',sellInvRow.id,{quantity:newQty,hold_qty:keepHold});
+    else await sbUpdate('inventory',sellInvRow.id,{quantity:newQty,hold_qty:keepHold,linda_payment:inventoryAmount({...sellInvRow,quantity:newQty,hold_qty:keepHold})});
     await sbInsert('sales',{sale_date:saleDate,entry_date:sellInvRow.entry_date||null,category:sellInvRow.category||null,supplier:sellInvRow.supplier||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,lot_dc:sellInvRow.lot_dc||null,buyer,notes});
-    await sbInsert('summary',{date:saleDate,spec:sellInvRow.spec,biz_type:'销售',supplier:sumExtra.supplier||'库存',part_number:sellInvRow.part_number,quantity:qty,sale_price:sp,lot_dc:sellInvRow.lot_dc||null,buyer,collection_price:sumExtra.collection_price||null,collection_method:sumExtra.collection_method||null,receive_code:sumExtra.receive_code||null,notes});
+    await sbInsert('summary',{date:saleDate,spec:sellInvRow.spec,biz_type:'销售',category:sellInvRow.category||null,supplier:sumExtra.supplier||'库存',part_number:sellInvRow.part_number,quantity:qty,sale_price:sp,lot_dc:sellInvRow.lot_dc||null,buyer,collection_price:sumExtra.collection_price||null,collection_method:sumExtra.collection_method||null,receive_code:sumExtra.receive_code||null,notes});
     showNotif(`已售出 ${fmt(qty)} 件${newQty===0&&keepHold===0?'，库存条目已移除':('，剩余库存 '+fmt(newQty)+(keepHold>0?`（锁货 ${fmt(keepHold)} 件）`:''))} ✓`);
     await loadInventory(); await loadSales(); await loadSummary();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -2326,6 +2389,50 @@ function fitTableViewports(){
     container.style.setProperty('--grid-max-height',`${available}px`);
   });
 }
+function setupResizableTables(){
+  document.querySelectorAll('.page.active .table-container table').forEach((table,tableIndex)=>{
+    if(table.dataset.columnsReady||!table.offsetWidth)return;
+    const headers=[...table.querySelectorAll('thead th')];
+    const pageId=table.closest('.page')?.id||`table-${tableIndex}`;
+    let saved=[];
+    try{saved=JSON.parse(localStorage.getItem(`column-widths:${pageId}`)||'[]');}catch(e){}
+    const widths=headers.map((th,i)=>Math.max(56,+saved[i]||Math.round(th.getBoundingClientRect().width)));
+    const applyWidths=()=>{
+      headers.forEach((th,i)=>{
+        th.style.width=`${widths[i]}px`;
+        th.style.minWidth=`${widths[i]}px`;
+        th.style.maxWidth=`${widths[i]}px`;
+      });
+      table.style.tableLayout='fixed';
+      table.style.width=`${widths.reduce((sum,width)=>sum+width,0)}px`;
+    };
+    applyWidths();
+    headers.forEach((th,index)=>{
+      const handle=document.createElement('span');
+      handle.className='col-resizer';
+      handle.title='拖动调整列宽';
+      handle.addEventListener('click',e=>e.stopPropagation());
+      handle.addEventListener('pointerdown',e=>{
+        e.preventDefault();e.stopPropagation();
+        const startX=e.clientX,startWidth=widths[index];
+        handle.classList.add('resizing');
+        document.body.classList.add('resizing-column');
+        const move=event=>{widths[index]=Math.max(56,startWidth+event.clientX-startX);applyWidths();};
+        const up=()=>{
+          handle.classList.remove('resizing');
+          document.body.classList.remove('resizing-column');
+          localStorage.setItem(`column-widths:${pageId}`,JSON.stringify(widths.map(Math.round)));
+          document.removeEventListener('pointermove',move);
+          document.removeEventListener('pointerup',up);
+        };
+        document.addEventListener('pointermove',move);
+        document.addEventListener('pointerup',up);
+      });
+      th.appendChild(handle);
+    });
+    table.dataset.columnsReady='1';
+  });
+}
 document.querySelectorAll('.table-container').forEach(container=>{
   container.addEventListener('wheel',e=>{
     if(!e.shiftKey||Math.abs(e.deltaY)<=Math.abs(e.deltaX)||container.scrollWidth<=container.clientWidth)return;
@@ -2334,8 +2441,9 @@ document.querySelectorAll('.table-container').forEach(container=>{
   },{passive:false});
 });
 window.addEventListener('resize',fitTableViewports);
-window.addEventListener('load',fitTableViewports);
+window.addEventListener('load',()=>{fitTableViewports();setupResizableTables();});
 fitTableViewports();
+setupResizableTables();
 
 // ── Sum modal ────────────────────────────────────────────────────────────
 let sumEditId=null;
@@ -2377,12 +2485,12 @@ $('sum-modal-save').addEventListener('click',async()=>{
     if(!sumEditId && g('biz_type')==='进货'){
       const qty=parseInt(g('quantity'))||0, price=parseFloat(g('order_price'))||null;
       const invPayload={
-        entry_date:g('date'),spec:g('spec'),part_number:g('part_number')||null,
+        entry_date:g('date'),spec:g('spec'),category:g('category')||null,part_number:g('part_number')||null,
         quantity:qty,unit_price:price,
         linda_payment:qty&&price?qty*price:null,
         min_package:g('min_package')||null,
         lot_dc:g('lot_dc')||null,
-        status:'待售',notes:null
+        warehouse_status:'待售',notes:null
       };
       await sbInsert('inventory',invPayload);
       showNotif('已保存汇总，并同步新增库存记录 ✓');
