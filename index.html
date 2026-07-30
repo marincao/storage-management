@@ -247,9 +247,10 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
 .role-viewer{background:rgba(139,150,176,0.1);color:var(--text2);border:1px solid rgba(139,150,176,0.2)}
 
 /* ── 公司名内联编辑 ── */
-.inline-edit{width:64px;padding:3px 6px;font-size:11px;background:transparent;border:1px dashed transparent;border-radius:3px;color:var(--text);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:border .15s,background .15s}
+.inline-edit{width:100%;min-width:72px;padding:3px 6px;font-size:11px;background:transparent;border:1px dashed transparent;border-radius:3px;color:var(--text);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:border .15s,background .15s}
 .inline-edit:hover{border-color:var(--border2);background:var(--surface2)}
 .inline-edit:focus{border-color:var(--accent);background:var(--surface);outline:none;box-shadow:0 0 0 2px rgba(0,212,170,0.1)}
+.inline-edit:disabled{cursor:default;opacity:.75;border-color:transparent;background:transparent}
 ::-webkit-scrollbar{width:8px;height:10px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -461,6 +462,9 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     </table>
     <div class="empty-state" id="inv-empty"><div class="empty-icon">📦</div>暂无记录</div>
   </div>
+  <datalist id="inv-company-options"></datalist>
+  <datalist id="inv-owner-options"></datalist>
+  <datalist id="inv-warehouse-options"></datalist>
 </div>
 
 <!-- 销售页 -->
@@ -1123,6 +1127,7 @@ function disableEditing() {
   hide.forEach(id=>{ const el=$(id); if(el) el.style.display='none'; });
   // Also hide action buttons dynamically after render — patch renderInventory/renderSummary
   window._viewerMode = true;
+  document.querySelectorAll('#inv-tbody .inline-edit').forEach(input=>input.disabled=true);
 }
 
 function showApp() {
@@ -1733,6 +1738,7 @@ function inventoryAmount(r){
 function renderInventory(){
   const search=$('inv-search').value.toLowerCase();
   const lotSearch=$('inv-lot-filter').value.trim().toLowerCase();
+  const inlineDisabled=currentUser?.role==='viewer'?'disabled':'';
   let rows=invData.filter(r=>
     (selectedSpecs.size===0||selectedSpecs.has(r.spec))&&
     (selectedCats.size===0||selectedCats.has(r.category))&&
@@ -1778,9 +1784,9 @@ function renderInventory(){
         ${first?`<td class="mono" rowspan="${gs}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avg.toFixed(2)}</td>
                  <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
-        <td>${r.cargo_owner?`<span class="tag tag-blue">${r.cargo_owner}</span>`:''}</td>
-        <td><input class="inline-edit" type="text" value="${(r.company_name||''). replace(/"/g,'&quot;')}" data-action="save-company" data-id="${r.id}" placeholder="—" title="点击编辑公司名"></td>
-        <td>${r.warehouse_status||''}</td>
+        <td><input class="inline-edit" type="text" list="inv-owner-options" value="${(r.cargo_owner||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="cargo_owner" data-id="${r.id}" placeholder="—" title="输入或选择货主" ${inlineDisabled}></td>
+        <td><input class="inline-edit" type="text" list="inv-company-options" value="${(r.company_name||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="company_name" data-id="${r.id}" placeholder="—" title="输入或选择公司名" ${inlineDisabled}></td>
+        <td><input class="inline-edit" type="text" list="inv-warehouse-options" value="${(r.warehouse_status||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="warehouse_status" data-id="${r.id}" placeholder="—" title="输入或选择入仓情况" ${inlineDisabled}></td>
         <td><button class="lot-cell lot-cell-btn" data-action="edit-lot" data-id="${r.id}" title="点击展开 LOT/DC/产地">${r.lot_dc||'点击填写'}</button></td>
         ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
       </tr>`;
@@ -1788,6 +1794,7 @@ function renderInventory(){
     i=j;
   }
   $('inv-tbody').innerHTML=html;
+  refreshInventoryInlineOptions();
   $('inv-foot-qty').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
   $('inv-foot-held').textContent=fmt(rows.reduce((s,r)=>s+(r.hold_qty||0),0));
   $('inv-foot-available').textContent=fmt(rows.reduce((s,r)=>s+Math.max(0,(r.quantity||0)-(r.hold_qty||0)),0));
@@ -1853,18 +1860,32 @@ $('inv-tbody').addEventListener('click',async e=>{
     catch(e){ showNotif('错误：'+e.message,true); }
   }
 });
-// 公司名内联编辑：失焦或回车保存
+function refreshInventoryInlineOptions(){
+  const fill=(id,field)=>{
+    const list=$(id);if(!list)return;
+    list.replaceChildren(...[...new Set(invData.map(r=>r[field]).filter(Boolean))].sort().map(value=>{
+      const option=document.createElement('option');option.value=value;return option;
+    }));
+  };
+  fill('inv-company-options','company_name');
+  fill('inv-owner-options','cargo_owner');
+  fill('inv-warehouse-options','warehouse_status');
+}
+
+// 公司名、货主、入仓情况：直接输入或选择历史值后保存
 $('inv-tbody').addEventListener('change',async e=>{
-  const inp=e.target.closest('[data-action="save-company"]');if(!inp)return;
-  const id=+inp.dataset.id, val=inp.value.trim()||null;
+  const inp=e.target.closest('[data-action="save-inline"]');if(!inp||currentUser?.role==='viewer')return;
+  const id=+inp.dataset.id,field=inp.dataset.field,val=inp.value.trim()||null;
+  const row=invData.find(x=>x.id===id);if(!row||!['company_name','cargo_owner','warehouse_status'].includes(field))return;
+  const oldValue=row[field]||null;if(oldValue===val)return;
   try{
-    await sbUpdate('inventory',id,{company_name:val});
-    const r=invData.find(x=>x.id===id); if(r)r.company_name=val;
-    showNotif('公司名已保存 ✓');
-  }catch(e){ showNotif('错误：'+e.message,true); }
+    await sbUpdate('inventory',id,{[field]:val});
+    row[field]=val;refreshInventoryInlineOptions();
+    showNotif(`${{company_name:'公司名',cargo_owner:'货主',warehouse_status:'入仓情况'}[field]}已保存 ✓`);
+  }catch(e){inp.value=oldValue||'';showNotif('错误：'+e.message,true);}
 });
 $('inv-tbody').addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&e.target.closest('[data-action="save-company"]')) e.target.blur();
+  if(e.key==='Enter'&&e.target.closest('[data-action="save-inline"]')) e.target.blur();
 });
 $('inv-export-btn').addEventListener('click',()=>exportCSV(window._filteredInvRows||invData,'库存'));
 
