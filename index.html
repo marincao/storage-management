@@ -430,7 +430,6 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       <div class="ms-panel" id="ms-owner-panel"></div>
     </div>
     <button class="btn btn-secondary" id="inv-export-btn">导出 CSV</button>
-    <button class="btn btn-primary" id="inv-add-btn">＋ 新增入库</button>
   </div>
   <div class="table-container">
     <div class="table-title">库存记录</div>
@@ -499,7 +498,6 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       <div class="ms-panel" id="ms-sales-buyer-panel"></div>
     </div>
     <button class="btn btn-secondary" id="sales-export-btn">导出 CSV</button>
-    <button class="btn btn-sales" id="sales-add-btn">＋ 新增销售</button>
   </div>
   <div class="table-container">
     <div class="table-title sales-title">销售记录</div>
@@ -1117,9 +1115,7 @@ function applyRole(role) {
 
 function disableEditing() {
   // Hide add/edit/delete/sell buttons, export stays
-  const hide = [
-    'inv-add-btn','sum-add-btn','sales-add-btn',
-  ];
+  const hide = ['sum-add-btn'];
   hide.forEach(id=>{ const el=$(id); if(el) el.style.display='none'; });
   // Also hide action buttons dynamically after render — patch renderInventory/renderSummary
   window._viewerMode = true;
@@ -1861,7 +1857,6 @@ $('inv-tbody').addEventListener('keydown',e=>{
 $('inv-export-btn').addEventListener('click',()=>exportCSV(window._filteredInvRows||invData,'库存'));
 
 // ── 入库弹窗 ─────────────────────────────
-$('inv-add-btn').addEventListener('click',()=>openInvModal(null));
 ['inv-modal-close','inv-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('inv-modal')));
 $('inv-modal').addEventListener('click',e=>{ if(e.target===$('inv-modal'))closeModal('inv-modal'); });
 
@@ -2190,7 +2185,6 @@ $('sales-tbody').addEventListener('click',async e=>{
 $('sales-export-btn').addEventListener('click',()=>exportCSV(window._filteredSalesRows||salesData,'销售'));
 
 // ── 独立销售弹窗 ─────────────────────────
-$('sales-add-btn').addEventListener('click',()=>openSaleModal(null));
 ['sale-modal-close','sale-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('sale-modal')));
 $('sale-modal').addEventListener('click',e=>{ if(e.target===$('sale-modal'))closeModal('sale-modal'); });
 
