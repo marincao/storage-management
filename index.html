@@ -138,9 +138,6 @@ select option{background:var(--surface)}
   scrollbar-gutter:stable both-edges;
   border-bottom:1px solid var(--border);
 }
-.lot-cell{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
-.lot-cell-btn{width:100%;padding:3px 6px;text-align:left;color:var(--accent2);background:transparent;border:1px dashed transparent;border-radius:3px;cursor:pointer}
-.lot-cell-btn:hover{border-color:var(--accent2);background:rgba(0,153,255,.08)}
 .table-title{font-size:12px;font-weight:600;color:var(--text2);padding:18px 0 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .table-title::before{content:'';display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px}
 .table-title.sales-title::before{background:var(--accent3)}
@@ -314,13 +311,13 @@ tfoot td{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accen
   entry_date TEXT, spec TEXT, part_number TEXT,
   quantity INTEGER, unit_price NUMERIC,
   linda_payment NUMERIC, min_package TEXT,
-  category TEXT, supplier TEXT, cargo_owner TEXT, status TEXT DEFAULT '待售',
+  supplier TEXT, cargo_owner TEXT, status TEXT DEFAULT '待售',
   warehouse_status TEXT, notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS sales (
   id BIGSERIAL PRIMARY KEY,
-  sale_date TEXT NOT NULL, entry_date TEXT, category TEXT,
+  sale_date TEXT NOT NULL, entry_date TEXT,
   spec TEXT, supplier TEXT, part_number TEXT,
   quantity INTEGER, sale_price NUMERIC, sale_total NUMERIC,
   cost_price NUMERIC, profit NUMERIC,
@@ -332,10 +329,20 @@ ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "public_inv" ON inventory FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_sales" ON sales FOR ALL USING (true) WITH CHECK (true);
 -- 新增列（已有数据库需运行）:
-ALTER TABLE inventory ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS brand TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS lot TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS dc TEXT;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS origin TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS brand TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS lot TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS dc TEXT;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS origin TEXT;
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS brand TEXT;
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS lot TEXT;
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS dc TEXT;
+ALTER TABLE summary ADD COLUMN IF NOT EXISTS origin TEXT;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS supplier TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS entry_date TEXT;
-ALTER TABLE sales ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS supplier TEXT;
 ALTER TABLE summary ADD COLUMN IF NOT EXISTS row_color TEXT;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS company_name TEXT;
@@ -351,7 +358,6 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "public_customers" ON customers FOR ALL USING (true) WITH CHECK (true);
-ALTER TABLE summary ADD COLUMN IF NOT EXISTS category TEXT;
 -- 用户角色表（需手动运行）:
 CREATE TABLE IF NOT EXISTS user_roles (
   id BIGSERIAL PRIMARY KEY,
@@ -400,7 +406,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
 <!-- 库存页 -->
 <div class="page active" id="page-inventory">
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">条目数 <span id="stat-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="stat-entries">—</div></div>
+    <div class="stat-card"><div class="stat-label">库存箱数 <span id="stat-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="stat-entries">—</div></div>
     <div class="stat-card"><div class="stat-label">入库数量（实物）</div><div class="stat-value blue" id="stat-qty">—</div></div>
     <div class="stat-card"><div class="stat-label">剩余数量（可接单）</div><div class="stat-value green" id="stat-available">—</div></div>
     <div class="stat-card"><div class="stat-label">已锁数量</div><div class="stat-value orange" id="stat-held">—</div></div>
@@ -413,15 +419,11 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   <div class="toolbar">
     <div class="date-display" id="inv-date"></div>
     <button class="btn btn-secondary" id="inv-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
-    <input class="search-box" type="text" id="inv-search" placeholder="搜索料号/规格/货主…">
+    <input class="search-box" type="text" id="inv-search" placeholder="搜索品牌/物料编码/规格/货主…">
     <input class="search-box" type="text" id="inv-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-spec-wrap">
       <div class="ms-btn" id="ms-spec-btn"><span id="ms-spec-label">全部规格</span></div>
       <div class="ms-panel" id="ms-spec-panel"></div>
-    </div>
-    <div class="ms-wrap" id="ms-cat-wrap">
-      <div class="ms-btn" id="ms-cat-btn"><span id="ms-cat-label">全部类别</span></div>
-      <div class="ms-panel" id="ms-cat-panel"></div>
     </div>
     <div class="ms-wrap" id="ms-owner-wrap">
       <div class="ms-btn" id="ms-owner-btn"><span id="ms-owner-label">全部货主</span></div>
@@ -437,18 +439,17 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th style="min-width:90px">操作</th>
         <th class="sortable" data-col="entry_date">入库日期<span class="sort-ind" id="is-entry_date"></span></th>
         <th class="sortable" data-col="spec">规格<span class="sort-ind" id="is-spec"></span></th>
-        <th class="sortable" data-col="category">类别<span class="sort-ind" id="is-category"></span></th>
-        <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="is-part_number"></span></th>
+        <th class="sortable" data-col="brand">品牌<span class="sort-ind" id="is-brand"></span></th>
+        <th class="sortable" data-col="part_number">物料编码<span class="sort-ind" id="is-part_number"></span></th>
         <th class="sortable" data-col="quantity">入库数量<span class="sort-ind" id="is-quantity"></span></th>
         <th style="min-width:90px">锁货数量</th>
         <th style="min-width:110px">剩余数量</th>
         <th class="sortable" data-col="unit_price">单价<span class="sort-ind" id="is-unit_price"></span></th>
         <th class="sortable" data-col="linda_payment">金额<span class="sort-ind" id="is-linda_payment"></span></th>
-        <th>平均成本</th><th>总数量</th>
         <th>最小包装/箱</th>
         <th class="sortable" data-col="cargo_owner">货主<span class="sort-ind" id="is-cargo_owner"></span></th>
         <th style="min-width:72px">公司名</th>
-        <th>入仓情况</th><th>LOT/DC/产地</th><th>备注</th>
+        <th>入仓情况</th><th>LOT</th><th>DC</th><th>产地</th><th>备注</th>
       </tr></thead>
       <tbody id="inv-tbody"><tr class="loading-msg"><td colspan="18">连接中…</td></tr></tbody>
       <tfoot><tr>
@@ -479,18 +480,14 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   <div class="toolbar">
     <div class="date-display" id="sales-date"></div>
     <button class="btn btn-secondary" id="sales-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
-    <input class="search-box" type="text" id="sales-search" placeholder="搜索规格/料号/客户…">
+    <input class="search-box" type="text" id="sales-search" placeholder="搜索品牌/规格/物料编码/客户…">
     <input class="search-box" type="text" id="sales-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-sales-spec-wrap">
       <div class="ms-btn" id="ms-sales-spec-btn"><span id="ms-sales-spec-label">全部规格</span></div>
       <div class="ms-panel" id="ms-sales-spec-panel"></div>
     </div>
-    <div class="ms-wrap" id="ms-sales-cat-wrap">
-      <div class="ms-btn" id="ms-sales-cat-btn"><span id="ms-sales-cat-label">全部类别</span></div>
-      <div class="ms-panel" id="ms-sales-cat-panel"></div>
-    </div>
     <div class="ms-wrap" id="ms-sales-pn-wrap">
-      <div class="ms-btn" id="ms-sales-pn-btn"><span id="ms-sales-pn-label">全部料号</span></div>
+      <div class="ms-btn" id="ms-sales-pn-btn"><span id="ms-sales-pn-label">全部物料编码</span></div>
       <div class="ms-panel" id="ms-sales-pn-panel"></div>
     </div>
     <div class="ms-wrap" id="ms-sales-supplier-wrap">
@@ -509,12 +506,14 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
     <table>
       <thead><tr class="sales-head" id="sales-thead">
         <th style="min-width:80px">操作</th>
-        <th class="sortable" data-col="category">类别<span class="sort-ind" id="ss-category"></span></th>
+        <th class="sortable" data-col="brand">品牌<span class="sort-ind" id="ss-brand"></span></th>
         <th class="sortable" data-col="spec">规格<span class="sort-ind" id="ss-spec"></span></th>
         <th class="sortable" data-col="entry_date">进货日期<span class="sort-ind" id="ss-entry_date"></span></th>
         <th class="sortable" data-col="supplier">供应商<span class="sort-ind" id="ss-supplier"></span></th>
-        <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="ss-part_number"></span></th>
-        <th class="sortable" data-col="lot_dc">LOT NO<span class="sort-ind" id="ss-lot_dc"></span></th>
+        <th class="sortable" data-col="part_number">物料编码<span class="sort-ind" id="ss-part_number"></span></th>
+        <th class="sortable" data-col="lot">LOT<span class="sort-ind" id="ss-lot"></span></th>
+        <th class="sortable" data-col="dc">DC<span class="sort-ind" id="ss-dc"></span></th>
+        <th class="sortable" data-col="origin">产地<span class="sort-ind" id="ss-origin"></span></th>
         <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="ss-quantity"></span></th>
         <th class="sortable" data-col="cost_price">进价<span class="sort-ind" id="ss-cost_price"></span></th>
         <th class="sortable" data-col="sale_date">出货日期<span class="sort-ind" id="ss-sale_date"></span></th>
@@ -525,9 +524,9 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th>利润率</th>
         <th>备注</th>
       </tr></thead>
-      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="17">连接中…</td></tr></tbody>
+      <tbody id="sales-tbody"><tr class="loading-msg"><td colspan="18">连接中…</td></tr></tbody>
       <tfoot><tr>
-        <td colspan="7">合计</td>
+        <td colspan="9">合计</td>
         <td id="sales-foot-qty" class="mono">—</td><td></td><td></td><td></td>
         <td id="sales-foot-rev" class="mono">—</td>
         <td id="sales-foot-profit" class="mono">—</td>
@@ -556,15 +555,15 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">类别</label>
-          <div class="cb-wrap" id="cb-wrap-category">
-            <input class="cb-input form-input" type="text" id="fi-category" placeholder="如 存储/闪存" autocomplete="off">
-            <span class="cb-arrow" data-cb="category">▾</span>
-            <div class="cb-panel" id="cb-panel-category"></div>
+          <label class="form-label">品牌</label>
+          <div class="cb-wrap" id="cb-wrap-brand">
+            <input class="cb-input form-input" type="text" id="fi-brand" placeholder="如 Samsung" autocomplete="off">
+            <span class="cb-arrow" data-cb="brand">▾</span>
+            <div class="cb-panel" id="cb-panel-brand"></div>
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">料号 *</label>
+          <label class="form-label">物料编码 *</label>
           <div class="cb-wrap" id="cb-wrap-part_number">
             <input class="cb-input form-input" type="text" id="fi-part_number" placeholder="如 KLM8G1GETF-B041006" autocomplete="off">
             <span class="cb-arrow" data-cb="part_number">▾</span>
@@ -603,34 +602,17 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">LOT/DC/产地</label>
-          <input class="form-input" type="text" id="fi-lot_dc" placeholder="如 2024+/TW">
+          <label class="form-label">LOT</label>
+          <input class="form-input mono" type="text" id="fi-lot" placeholder="如 H0134R0609">
         </div>
+        <div class="form-group"><label class="form-label">DC</label><input class="form-input mono" type="text" id="fi-dc" placeholder="如 DC2609"></div>
+        <div class="form-group"><label class="form-label">产地</label><input class="form-input" type="text" id="fi-origin" placeholder="如 VN"></div>
         <div class="form-group full"><label class="form-label">备注</label><textarea class="form-input" id="fi-notes" rows="4" placeholder="备注信息…" style="resize:vertical;line-height:1.6"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="inv-modal-cancel">取消</button>
       <button class="btn btn-primary" id="inv-modal-save">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- LOT/DC 展开编辑弹窗 -->
-<div class="modal-overlay" id="lot-modal">
-  <div class="modal" style="width:620px">
-    <div class="modal-header"><div class="modal-title">LOT/DC/产地明细</div><button class="modal-close" id="lot-modal-close">✕</button></div>
-    <div class="modal-body">
-      <div class="inv-info-box" id="lot-modal-info"></div>
-      <div class="form-group">
-        <label class="form-label">LOT/DC/产地</label>
-        <textarea class="form-input mono" id="lot-modal-value" rows="10" placeholder="可输入多行 LOT/DC/产地信息"></textarea>
-        <div class="form-hint">支持多行内容；保存后列表保持单行缩略显示，点击可再次展开。</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" id="lot-modal-cancel">取消</button>
-      <button class="btn btn-primary" id="lot-modal-save">保存修改</button>
     </div>
   </div>
 </div>
@@ -705,8 +687,8 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <div class="form-group"><label class="form-label">出货日期 *</label><input class="form-input" type="date" id="fsa-sale_date"></div>
         <div class="form-group"><label class="form-label">进货日期</label><input class="form-input" type="date" id="fsa-entry_date"></div>
         <div class="form-group">
-          <label class="form-label">类别</label>
-          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-category" placeholder="如 存储/闪存" autocomplete="off"><span class="cb-arrow" data-cb="fsa-category">▾</span><div class="cb-panel" id="cb-panel-fsa-category"></div></div>
+          <label class="form-label">品牌</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-brand" placeholder="如 Samsung" autocomplete="off"><span class="cb-arrow" data-cb="fsa-brand">▾</span><div class="cb-panel" id="cb-panel-fsa-brand"></div></div>
         </div>
         <div class="form-group">
           <label class="form-label">规格</label>
@@ -717,12 +699,16 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-supplier" placeholder="供应商名称" autocomplete="off"><span class="cb-arrow" data-cb="fsa-supplier">▾</span><div class="cb-panel" id="cb-panel-fsa-supplier"></div></div>
         </div>
         <div class="form-group">
-          <label class="form-label">料号</label>
+          <label class="form-label">物料编码</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsa-part_number" placeholder="如 KLM8G…" autocomplete="off"><span class="cb-arrow" data-cb="fsa-part_number">▾</span><div class="cb-panel" id="cb-panel-fsa-part_number"></div></div>
         </div>
         <div class="form-group"><label class="form-label">数量 *</label><input class="form-input" type="number" id="fsa-quantity" placeholder="0"></div>
+        <div class="form-group"><label class="form-label">LOT</label><input class="form-input mono" type="text" id="fsa-lot" placeholder="如 H0134R0609"></div>
+        <div class="form-group"><label class="form-label">DC</label><input class="form-input mono" type="text" id="fsa-dc" placeholder="如 DC2609"></div>
+        <div class="form-group"><label class="form-label">产地</label><input class="form-input" type="text" id="fsa-origin" placeholder="如 VN"></div>
         <div class="form-group"><label class="form-label">进价</label><input class="form-input" type="number" step="0.01" id="fsa-cost_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">售价 *</label><input class="form-input" type="number" step="0.01" id="fsa-sale_price" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">销售总额（自动）</label><input class="form-input" type="number" id="fsa-sale_total" readonly style="color:var(--accent3);background:var(--surface2)"></div>
         <div class="form-group"><label class="form-label">利润（自动）</label><input class="form-input" type="number" id="fsa-profit" readonly style="color:var(--green);background:var(--surface2)"></div>
         <div class="form-group">
           <label class="form-label">客户</label>
@@ -743,7 +729,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
 <div class="page" id="page-summary">
   <div class="stats-bar">
     <div class="stat-card"><div class="stat-label">总条目 <span id="sum-filter-badge" style="font-size:9px;color:var(--text3)"></span></div><div class="stat-value" id="sum-count">—</div></div>
-    <div class="stat-card"><div class="stat-label">进货笔数</div><div class="stat-value blue" id="sum-in-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">进货箱数</div><div class="stat-value blue" id="sum-in-count">—</div></div>
     <div class="stat-card"><div class="stat-label">进货总额（下单价×数量）</div><div class="stat-value orange" id="sum-in-total">—</div></div>
     <div class="stat-card"><div class="stat-label">销售笔数</div><div class="stat-value" style="color:#a78bfa" id="sum-out-count">—</div></div>
     <div class="stat-card"><div class="stat-label">销售总额（售价×数量）</div><div class="stat-value green" id="sum-out-total">—</div></div>
@@ -751,7 +737,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   <div class="toolbar">
     <div class="date-display" id="sum-date"></div>
     <button class="btn btn-secondary" id="sum-clear-filter-btn" style="display:none;padding:6px 12px;font-size:12px">✕ 清除筛选</button>
-    <input class="search-box" type="text" id="sum-search" placeholder="搜索规格/料号/客户…">
+    <input class="search-box" type="text" id="sum-search" placeholder="搜索品牌/规格/物料编码/客户…">
     <input class="search-box" type="text" id="sum-lot-filter" placeholder="筛选 LOT NO">
     <div class="ms-wrap" id="ms-sum-spec-wrap">
       <div class="ms-btn" id="ms-sum-spec-btn"><span id="ms-sum-spec-label">全部规格</span></div>
@@ -766,7 +752,7 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
       <div class="ms-panel" id="ms-sum-supplier-panel"></div>
     </div>
     <div class="ms-wrap" id="ms-sum-pn-wrap">
-      <div class="ms-btn" id="ms-sum-pn-btn"><span id="ms-sum-pn-label">全部料号</span></div>
+      <div class="ms-btn" id="ms-sum-pn-btn"><span id="ms-sum-pn-label">全部物料编码</span></div>
       <div class="ms-panel" id="ms-sum-pn-panel"></div>
     </div>
     <div class="ms-wrap" id="ms-sum-buyer-wrap">
@@ -778,14 +764,15 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
   </div>
   <div class="table-container">
     <div class="table-title" style="color:#a78bfa">汇总记录</div>
-    <table style="min-width:1800px">
+    <table style="min-width:2100px">
       <thead><tr id="sum-thead" style="border-bottom:2px solid #a78bfa">
         <th style="min-width:80px">操作</th>
         <th class="sortable" data-col="date">日期<span class="sort-ind" id="iss-date"></span></th>
         <th class="sortable" data-col="spec">规格<span class="sort-ind" id="iss-spec"></span></th>
+        <th class="sortable" data-col="brand">品牌<span class="sort-ind" id="iss-brand"></span></th>
         <th class="sortable" data-col="biz_type">业务类别<span class="sort-ind" id="iss-biz_type"></span></th>
         <th class="sortable" data-col="supplier">供应商<span class="sort-ind" id="iss-supplier"></span></th>
-        <th class="sortable" data-col="part_number">料号<span class="sort-ind" id="iss-part_number"></span></th>
+        <th class="sortable" data-col="part_number">物料编码<span class="sort-ind" id="iss-part_number"></span></th>
         <th class="sortable" data-col="quantity">数量<span class="sort-ind" id="iss-quantity"></span></th>
         <th>下单Code</th>
         <th>付款方式</th>
@@ -798,13 +785,15 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <th>销售总额</th>
         <th>收款方式</th>
         <th>接单Code</th>
-        <th>LOT/DC/产地</th>
+        <th>LOT</th>
+        <th>DC</th>
+        <th>产地</th>
         <th>质保时间/年</th>
         <th>最小包装/箱</th>
         <th>交货日期</th>
         <th>备注</th>
       </tr></thead>
-      <tbody id="sum-tbody"><tr class="loading-msg"><td colspan="21">连接中…</td></tr></tbody>
+      <tbody id="sum-tbody"><tr class="loading-msg"><td colspan="26">连接中…</td></tr></tbody>
     </table>
     <div class="empty-state" id="sum-empty"><div class="empty-icon">📋</div>暂无汇总记录</div>
   </div>
@@ -825,18 +814,18 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
           <select class="form-input" id="fsum-biz_type"><option value="进货">进货</option><option value="销售">销售</option><option value="过水">过水</option></select>
         </div>
         <div class="form-group">
-          <label class="form-label">类别</label>
-          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-category" placeholder="如 存储/闪存" autocomplete="off"><span class="cb-arrow" data-cb="fsum-category">▾</span><div class="cb-panel" id="cb-panel-fsum-category"></div></div>
+          <label class="form-label">品牌</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-brand" placeholder="如 Samsung" autocomplete="off"><span class="cb-arrow" data-cb="fsum-brand">▾</span><div class="cb-panel" id="cb-panel-fsum-brand"></div></div>
         </div>
         <div class="form-group">
           <label class="form-label">供应商</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-supplier" placeholder="供应商名称" autocomplete="off"><span class="cb-arrow" data-cb="fsum-supplier">▾</span><div class="cb-panel" id="cb-panel-fsum-supplier"></div></div>
         </div>
         <div class="form-group">
-          <label class="form-label">料号</label>
-          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-part_number" placeholder="料号" autocomplete="off"><span class="cb-arrow" data-cb="fsum-part_number">▾</span><div class="cb-panel" id="cb-panel-fsum-part_number"></div></div>
+          <label class="form-label">物料编码</label>
+          <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-part_number" placeholder="物料编码" autocomplete="off"><span class="cb-arrow" data-cb="fsum-part_number">▾</span><div class="cb-panel" id="cb-panel-fsum-part_number"></div></div>
         </div>
-        <div class="form-group"><label class="form-label">数量</label><input class="form-input" type="number" id="fsum-quantity" placeholder="0"></div>
+        <div class="form-group"><label class="form-label">总数量（按箱明细自动汇总）</label><input class="form-input" type="number" id="fsum-quantity" placeholder="0" readonly style="background:var(--surface2)"></div>
         <div class="form-group"><label class="form-label">下单Code</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-order_code" placeholder="下单Code" autocomplete="off"><span class="cb-arrow" data-cb="fsum-order_code">▾</span><div class="cb-panel" id="cb-panel-fsum-order_code"></div></div></div>
         <div class="form-group"><label class="form-label">付款方式</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-payment_method" placeholder="如 电汇/现金" autocomplete="off"><span class="cb-arrow" data-cb="fsum-payment_method">▾</span><div class="cb-panel" id="cb-panel-fsum-payment_method"></div></div></div>
         <div class="form-group"><label class="form-label">下单价</label><input class="form-input" type="number" step="0.01" id="fsum-order_price" placeholder="0.00"></div>
@@ -849,17 +838,24 @@ CREATE POLICY "public_roles" ON user_roles FOR ALL USING (true) WITH CHECK (true
         <div class="form-group"><label class="form-label">收款价格</label><input class="form-input" type="number" step="0.01" id="fsum-collection_price" placeholder="0.00"></div>
         <div class="form-group"><label class="form-label">收款方式</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-collection_method" placeholder="如 转账/现金" autocomplete="off"><span class="cb-arrow" data-cb="fsum-collection_method">▾</span><div class="cb-panel" id="cb-panel-fsum-collection_method"></div></div></div>
         <div class="form-group"><label class="form-label">接单Code</label><div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-receive_code" placeholder="接单Code" autocomplete="off"><span class="cb-arrow" data-cb="fsum-receive_code">▾</span><div class="cb-panel" id="cb-panel-fsum-receive_code"></div></div></div>
-        <div class="form-group"><label class="form-label">LOT/DC/产地</label><input class="form-input" type="text" id="fsum-lot_dc" placeholder="如 2024+/TW"></div>
+        <div class="form-group" id="fsum-lot-group"><label class="form-label">LOT</label><input class="form-input mono" type="text" id="fsum-lot" placeholder="如 H0134R0609"></div>
+        <div class="form-group" id="fsum-dc-group"><label class="form-label">DC</label><input class="form-input mono" type="text" id="fsum-dc" placeholder="如 DC2609"></div>
+        <div class="form-group" id="fsum-origin-group"><label class="form-label">产地</label><input class="form-input" type="text" id="fsum-origin" placeholder="如 VN"></div>
         <div class="form-group"><label class="form-label">质保时间/年</label><input class="form-input" type="text" id="fsum-warranty" placeholder="如 2年"></div>
         <div class="form-group">
           <label class="form-label">最小包装/箱</label>
           <div class="cb-wrap"><input class="cb-input form-input" type="text" id="fsum-min_package" placeholder="如 1120/箱" autocomplete="off"><span class="cb-arrow" data-cb="fsum-min_package">▾</span><div class="cb-panel" id="cb-panel-fsum-min_package"></div></div>
         </div>
         <div class="form-group"><label class="form-label">交货日期</label><input class="form-input" type="date" id="fsum-delivery_date"></div>
-        <div class="form-group full" style="grid-column:1/-1"><label class="form-label">备注</label><textarea class="form-input" id="fsum-notes" rows="2" placeholder="备注…" style="resize:vertical"></textarea></div>
+        <div class="form-group full" id="fsum-box-details-group" style="grid-column:1/-1">
+          <label class="form-label">箱明细 *（每行一箱：LOT 数量 DC 产地 备注）</label>
+          <textarea class="form-input mono" id="fsum-box_details" rows="8" placeholder="H0134R0609  250  DC2609  VN  原箱未开,CUT L&#10;H0U41G0609  250  DC2609  VN  原箱未开,CUT L" style="resize:vertical;line-height:1.7"></textarea>
+          <div class="form-hint" id="fsum-box-summary">输入后将显示箱数和总数量；备注可包含空格。</div>
+        </div>
+        <div class="form-group full" id="fsum-notes-group" style="grid-column:1/-1"><label class="form-label">备注</label><textarea class="form-input" id="fsum-notes" rows="2" placeholder="备注…" style="resize:vertical"></textarea></div>
       </div>
       <div id="sum-inv-sync-notice" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(0,212,170,0.08);border:1px solid var(--accent);border-radius:6px;font-size:12px;color:var(--accent)">
-        ✓ 业务类别为「进货」时，将同步新增一条库存管理记录
+        ✓ 每行箱明细将分别新增一条汇总记录和一条库存记录
       </div>
     </div>
     <div class="modal-footer">
@@ -1358,7 +1354,7 @@ const POLL_INTERVAL = 8000; // 轮询间隔 ms（Realtime 断连时启用）
 let lastInvHash = '', lastSalesHash = '', lastSumHash = '';
 function hashArr(arr){ return arr.map(r=>[
   r.id,r.quantity,r.hold_qty,r.unit_price,r.linda_payment,r.status,
-  r.category,r.company_name,r.lot_dc,r.buyer,r.notes
+  r.brand,r.company_name,r.lot,r.dc,r.origin,r.buyer,r.notes
 ].map(v=>v??'').join('|')).join(','); }
 
 function setStatus(mode) {
@@ -1546,10 +1542,10 @@ function initCB(inputEl, panelEl, getOpts) {
 // combobox data sources (keyed by field name)
 const cbSources = {
   'spec':               () => [...new Set([...invData,...summaryData].map(r=>r.spec).filter(Boolean))].sort(),
+  'brand':              () => [...new Set([...invData,...salesData,...summaryData].map(r=>r.brand).filter(Boolean))].sort(),
   'part_number':        () => [...new Set([...invData,...summaryData].map(r=>r.part_number).filter(Boolean))].sort(),
   'min_package':        () => [...new Set([...invData,...summaryData].map(r=>r.min_package).filter(Boolean))].sort(),
   'cargo_owner':        () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(),
-  'category':           () => [...new Set([...invData,...summaryData].map(r=>r.category).filter(Boolean))].sort(),
   'supplier':           () => [...new Set([...invData,...summaryData].map(r=>r.supplier).filter(Boolean))].sort(),
   'warehouse_status':   () => [...new Set(invData.map(r=>r.warehouse_status).filter(Boolean))].sort(),
   'buyer':              () => [...new Set([...salesData,...summaryData].map(r=>r.buyer).filter(Boolean))].sort(),
@@ -1561,8 +1557,8 @@ const cbSources = {
 
 // Init all comboboxes once DOM ready
 function initAllCB() {
-  // inv-modal comboboxes — spec, category, min_package, cargo_owner, supplier, warehouse_status
-  [['fi-spec','spec'],['fi-category','category'],['fi-min_package','min_package'],
+  // inv-modal comboboxes
+  [['fi-spec','spec'],['fi-brand','brand'],['fi-min_package','min_package'],
    ['fi-cargo_owner','cargo_owner'],['fi-warehouse_status','warehouse_status']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+src);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
@@ -1591,13 +1587,13 @@ function initAllCB() {
   const fhcBuyer=$('fhc-buyer'), fhcBuyerPan=$('cb-panel-fhc-buyer');
   if(fhcBuyer&&fhcBuyerPan) initCB(fhcBuyer,fhcBuyerPan,cbSources['buyer']);
   // sale-modal comboboxes (fsa- prefix, panel id = cb-panel-fsa-{fieldname})
-  [['fsa-spec','spec'],['fsa-category','category'],['fsa-supplier','supplier'],['fsa-part_number','part_number'],['fsa-buyer','buyer']].forEach(([inputId, src]) => {
+  [['fsa-spec','spec'],['fsa-brand','brand'],['fsa-supplier','supplier'],['fsa-part_number','part_number'],['fsa-buyer','buyer']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+inputId);
     if (inp && pan) initCB(inp, pan, cbSources[src]);
   });
-  // sum-modal comboboxes (including new code/method/category fields)
+  // sum-modal comboboxes
   [['fsum-spec','spec'],['fsum-supplier','supplier'],['fsum-part_number','part_number'],
-   ['fsum-buyer','buyer'],['fsum-min_package','min_package'],['fsum-category','category'],
+   ['fsum-buyer','buyer'],['fsum-min_package','min_package'],['fsum-brand','brand'],
    ['fsum-order_code','order_code'],['fsum-payment_method','payment_method'],
    ['fsum-receive_code','receive_code'],['fsum-collection_method','collection_method']].forEach(([inputId, src]) => {
     const inp = $(inputId), pan = $('cb-panel-'+inputId);
@@ -1631,10 +1627,9 @@ initAllCB();
 function refreshDL() {}
 
 // ════════════════════════════════════════
-//  Multi-select filters（规格 / 类别 / 货主）
+//  Multi-select filters（规格 / 货主）
 // ════════════════════════════════════════
 let selectedSpecs  = new Set();
-let selectedCats   = new Set();
 let selectedOwners = new Set();
 
 // Generic multi-select panel builder
@@ -1685,29 +1680,26 @@ function buildMsGeneric(wrapId, btnId, labelId, panelId, getValues, selectedSet,
 
 const msSpec  = buildMsGeneric('ms-spec-wrap',  'ms-spec-btn',  'ms-spec-label',  'ms-spec-panel',
   () => [...new Set(invData.map(r=>r.spec).filter(Boolean))].sort(),  selectedSpecs,  '全部规格',  () => { updateClearBtn(); renderInventory(); });
-const msCat   = buildMsGeneric('ms-cat-wrap',   'ms-cat-btn',   'ms-cat-label',   'ms-cat-panel',
-  () => [...new Set(invData.map(r=>r.category).filter(Boolean))].sort(), selectedCats,   '全部类别',  () => { updateClearBtn(); renderInventory(); });
 const msOwner = buildMsGeneric('ms-owner-wrap', 'ms-owner-btn', 'ms-owner-label', 'ms-owner-panel',
   () => [...new Set(invData.map(r=>r.cargo_owner).filter(Boolean))].sort(), selectedOwners, '全部货主',  () => { updateClearBtn(); renderInventory(); });
 
 function buildMsPanel() {
   msSpec?.rebuild();
-  msCat?.rebuild();
   msOwner?.rebuild();
 }
 
 // Show/hide "清除筛选" button based on whether any filter is active
 function updateClearBtn() {
-  const hasFilter = selectedSpecs.size || selectedCats.size || selectedOwners.size || $('inv-search').value || $('inv-lot-filter').value;
+  const hasFilter = selectedSpecs.size || selectedOwners.size || $('inv-search').value || $('inv-lot-filter').value;
   $('inv-clear-filter-btn').style.display = hasFilter ? '' : 'none';
 }
 
 $('inv-clear-filter-btn').addEventListener('click', () => {
-  selectedSpecs.clear(); selectedCats.clear(); selectedOwners.clear();
+  selectedSpecs.clear(); selectedOwners.clear();
   $('inv-search').value = '';
   $('inv-lot-filter').value = '';
   buildMsPanel();
-  msSpec?.updateLabel(); msCat?.updateLabel(); msOwner?.updateLabel();
+  msSpec?.updateLabel(); msOwner?.updateLabel();
   updateClearBtn();
   renderInventory();
 });
@@ -1723,13 +1715,6 @@ async function loadInventory(){
   catch(e){ showNotif('加载失败：'+e.message,true); }
 }
 
-function calcGroups(rows){
-  const g={};
-  rows.forEach(r=>{ const k=r.spec||''; if(!g[k])g[k]={tq:0,tc:0,sharedNote:''}; const q=r.quantity||0; g[k].tq+=q; g[k].tc+=q*(parseFloat(r.unit_price)||0); if(!g[k].sharedNote&&r.notes)g[k].sharedNote=r.notes; });
-  Object.keys(g).forEach(k=>{ g[k].avg=g[k].tq>0?g[k].tc/g[k].tq:0; });
-  return g;
-}
-
 function inventoryAmount(r){
   const available=Math.max(0,(+r.quantity||0)-(+r.hold_qty||0));
   return available*(+r.unit_price||0);
@@ -1741,10 +1726,9 @@ function renderInventory(){
   const inlineDisabled=currentUser?.role==='viewer'?'disabled':'';
   let rows=invData.filter(r=>
     (selectedSpecs.size===0||selectedSpecs.has(r.spec))&&
-    (selectedCats.size===0||selectedCats.has(r.category))&&
     (selectedOwners.size===0||selectedOwners.has(r.cargo_owner))&&
-    (!search||['spec','category','part_number','cargo_owner','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
-    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
+    (!search||['spec','brand','part_number','cargo_owner','lot','dc','origin','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{
     if((a.spec||'')<(b.spec||''))return -1; if((a.spec||'')>(b.spec||''))return 1;
@@ -1752,15 +1736,7 @@ function renderInventory(){
     return invSortAsc?(av>bv?1:-1):(av<bv?1:-1);
   });
   $('inv-empty').style.display=rows.length?'none':'block';
-  const grps=calcGroups(invData);
-  let html='',i=0;
-  while(i<rows.length){
-    const spec=rows[i].spec||''; let j=i;
-    while(j<rows.length&&(rows[j].spec||'')===spec)j++;
-    const gs=j-i, grp=grps[spec]||{avg:0,tq:0};
-    for(let k=i;k<j;k++){
-      const r=rows[k],first=(k===i);
-      html+=`<tr>
+  $('inv-tbody').innerHTML=rows.map(r=>`<tr>
         <td style="display:flex;gap:4px;justify-content:center;padding:8px 12px">
           <button class="action-btn btn-sel" data-action="sel" data-id="${r.id}">卖出</button>
           <button class="action-btn btn-edit" data-action="inv-edit" data-id="${r.id}">编辑</button>
@@ -1768,7 +1744,7 @@ function renderInventory(){
         </td>
         <td class="mono">${r.entry_date||''}</td>
         <td>${r.spec||''}</td>
-        <td>${r.category||''}</td>
+        <td>${r.brand||''}</td>
         <td class="mono" style="font-size:10px">${r.part_number||''}</td>
         <td class="mono">${fmt(r.quantity)}</td>
         <td style="text-align:center;white-space:nowrap">
@@ -1781,19 +1757,15 @@ function renderInventory(){
         <td class="mono" style="color:var(--green);font-weight:600">${fmt(Math.max(0,(r.quantity||0)-(r.hold_qty||0)))}</td>
         <td class="mono">${r.unit_price!=null?(+r.unit_price).toFixed(2):''}</td>
         <td class="mono">${r.unit_price!=null?fmtM(inventoryAmount(r)):''}</td>
-        ${first?`<td class="mono" rowspan="${gs}" style="background:rgba(0,212,170,0.06);border-left:2px solid var(--accent);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent)">${grp.avg.toFixed(2)}</td>
-                 <td class="mono" rowspan="${gs}" style="background:rgba(0,153,255,0.06);border-left:2px solid var(--accent2);vertical-align:middle;text-align:center;font-weight:600;color:var(--accent2)">${fmt(grp.tq)}</td>`:''}
         <td class="mono" style="font-size:10px">${r.min_package||''}</td>
         <td><input class="inline-edit" type="text" list="inv-owner-options" value="${(r.cargo_owner||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="cargo_owner" data-id="${r.id}" placeholder="—" title="输入或选择货主" ${inlineDisabled}></td>
         <td><input class="inline-edit" type="text" list="inv-company-options" value="${(r.company_name||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="company_name" data-id="${r.id}" placeholder="—" title="输入或选择公司名" ${inlineDisabled}></td>
         <td><input class="inline-edit" type="text" list="inv-warehouse-options" value="${(r.warehouse_status||'').replace(/"/g,'&quot;')}" data-action="save-inline" data-field="warehouse_status" data-id="${r.id}" placeholder="—" title="输入或选择入仓情况" ${inlineDisabled}></td>
-        <td><button class="lot-cell lot-cell-btn" data-action="edit-lot" data-id="${r.id}" title="点击展开 LOT/DC/产地">${r.lot_dc||'点击填写'}</button></td>
-        ${first?`<td rowspan="${gs}" style="max-width:140px;white-space:pre-wrap;font-size:11px;color:var(--text2);vertical-align:top;padding-top:12px;border-left:2px solid var(--border2)">${grp.sharedNote||''}</td>`:''}
-      </tr>`;
-    }
-    i=j;
-  }
-  $('inv-tbody').innerHTML=html;
+        <td class="mono" style="font-size:10px">${r.lot||''}</td>
+        <td class="mono" style="font-size:10px">${r.dc||''}</td>
+        <td>${r.origin||''}</td>
+        <td style="max-width:160px;white-space:pre-wrap;font-size:11px;color:var(--text2)">${r.notes||''}</td>
+      </tr>`).join('');
   refreshInventoryInlineOptions();
   $('inv-foot-qty').textContent=fmt(rows.reduce((s,r)=>s+(r.quantity||0),0));
   $('inv-foot-held').textContent=fmt(rows.reduce((s,r)=>s+(r.hold_qty||0),0));
@@ -1838,7 +1810,6 @@ $('inv-tbody').addEventListener('click',async e=>{
   const id=+btn.dataset.id,action=btn.dataset.action;
   if(action==='sel')openSellModal(id);
   if(action==='inv-edit')openInvModal(id);
-  if(action==='edit-lot')openLotModal(id);
   if(action==='hold-confirm') openHoldConfirmModal(id);
   if(action==='hold-cancel'){
     const row=invData.find(r=>r.id===id);
@@ -1889,28 +1860,6 @@ $('inv-tbody').addEventListener('keydown',e=>{
 });
 $('inv-export-btn').addEventListener('click',()=>exportCSV(window._filteredInvRows||invData,'库存'));
 
-let lotEditRow=null;
-function openLotModal(id){
-  lotEditRow=invData.find(r=>r.id===id);if(!lotEditRow)return;
-  $('lot-modal-info').innerHTML=`规格：<b>${lotEditRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b>${lotEditRow.part_number||''}</b>`;
-  $('lot-modal-value').value=lotEditRow.lot_dc||'';
-  $('lot-modal-value').readOnly=!!window._viewerMode;
-  $('lot-modal-save').style.display=window._viewerMode?'none':'';
-  openModal('lot-modal');
-}
-['lot-modal-close','lot-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('lot-modal')));
-$('lot-modal').addEventListener('click',e=>{if(e.target===$('lot-modal'))closeModal('lot-modal');});
-$('lot-modal-save').addEventListener('click',async()=>{
-  if(!lotEditRow)return;
-  const value=$('lot-modal-value').value.trim()||null;
-  try{
-    await sbUpdate('inventory',lotEditRow.id,{lot_dc:value});
-    lotEditRow.lot_dc=value;
-    closeModal('lot-modal'); renderInventory();
-    showNotif('LOT/DC/产地已保存 ✓');
-  }catch(e){showNotif('保存失败：'+e.message,true);}
-});
-
 // ── 入库弹窗 ─────────────────────────────
 $('inv-add-btn').addEventListener('click',()=>openInvModal(null));
 ['inv-modal-close','inv-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('inv-modal')));
@@ -1927,7 +1876,7 @@ function calcLinda(){
 function openInvModal(id){
   invEditId=id;
   $('inv-modal-title').textContent=id?'编辑入库记录':'新增入库';
-  const fields=['entry_date','spec','category','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','company_name','warehouse_status','lot_dc','notes'];
+  const fields=['entry_date','spec','brand','part_number','quantity','unit_price','linda_payment','min_package','cargo_owner','company_name','warehouse_status','lot','dc','origin','notes'];
   if(id){
     const r=invData.find(x=>x.id===id);
     fields.forEach(f=>{ const el=$('fi-'+f);if(el)el.value=r[f]??''; });
@@ -1941,25 +1890,13 @@ function openInvModal(id){
 
 $('inv-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fi-'+f).value.trim();
-  if(!g('entry_date')||!g('spec')||!g('part_number')){ showNotif('请填写必填项（*）',true);return; }
   const qty=parseInt(g('quantity'))||0, price=parseFloat(g('unit_price'))||null;
+  if(!g('entry_date')||!g('spec')||!g('part_number')||qty<1){ showNotif('请填写必填项（*），数量必须大于 0',true);return; }
   const hold=invEditId?(invData.find(r=>r.id===invEditId)?.hold_qty||0):0;
   const linda=qty&&price?Math.max(0,qty-hold)*price:(parseFloat(g('linda_payment'))||null);
   try{
-    const spec=g('spec'), newNote=g('notes')||null;
-    // For new entries: concat with existing shared note; for edits: replace
-    let finalNote=newNote;
-    if(!invEditId && newNote){
-      const existing=invData.find(r=>r.spec===spec&&r.notes);
-      if(existing&&existing.notes&&existing.notes!==newNote){
-        finalNote=existing.notes+'\n'+newNote;
-      }
-    }
-    const payload={entry_date:g('entry_date'),spec,category:g('category')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,company_name:g('company_name')||null,warehouse_status:g('warehouse_status')||null,lot_dc:g('lot_dc')||null,notes:finalNote};
+    const payload={entry_date:g('entry_date'),spec:g('spec'),brand:g('brand')||null,part_number:g('part_number'),quantity:qty,unit_price:price,linda_payment:linda,min_package:g('min_package')||null,cargo_owner:g('cargo_owner')||null,company_name:g('company_name')||null,warehouse_status:g('warehouse_status')||null,lot:g('lot')||null,dc:g('dc')||null,origin:g('origin')||null,notes:g('notes')||null};
     invEditId?await sbUpdate('inventory',invEditId,payload):await sbInsert('inventory',payload);
-    // Sync combined note to all other entries with the same 规格
-    const sameSpec=invData.filter(r=>r.spec===spec&&r.id!==invEditId&&r.notes!==finalNote);
-    if(sameSpec.length) await Promise.all(sameSpec.map(r=>sbUpdate('inventory',r.id,{notes:finalNote})));
     showNotif(invEditId?'已更新 ✓':'已添加 ✓');
     closeModal('inv-modal'); await loadInventory();
   }catch(e){ showNotif('错误：'+e.message,true); }
@@ -1978,7 +1915,7 @@ function openSellModal(invId){
 
   // Build info box
   $('sell-info').innerHTML=
-    `规格：<b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>`+
+    `规格：<b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 物料编码：<b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>`+
     `总库存：<b style="color:var(--accent)">${fmt(totalStock)}</b>`+
     (holdQty>0?` &nbsp;|&nbsp; 锁货：<b style="color:var(--accent3)">${fmt(holdQty)}</b> &nbsp;|&nbsp; 可用：<b style="color:var(--green)">${fmt(available)}</b>`:'');
 
@@ -2036,7 +1973,7 @@ $('sell-modal-save').addEventListener('click',async()=>{
   const cp=parseFloat(g('cost_price'))||null, newQty=totalStock-qty;
   pendingSale = { qty, sp, cp, newQty, keepHold:holdQty, saleDate:g('sale_date'), buyer:g('buyer')||null, notes:g('notes')||null };
   $('sell-sum-info').innerHTML =
-    `规格：<b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>` +
+    `规格：<b style="color:var(--text)">${sellInvRow.spec||''}</b> &nbsp;|&nbsp; 物料编码：<b style="color:var(--text)">${sellInvRow.part_number||''}</b><br>` +
     `数量：<b style="color:var(--accent)">${fmt(qty)}</b> &nbsp;|&nbsp; 售价：<b style="color:var(--text2)">${sp.toFixed(2)}</b>`;
   $('fss-supplier').value='库存';
   $('fss-collection_price').value=''; $('fss-collection_method').value=''; $('fss-receive_code').value='';
@@ -2049,8 +1986,9 @@ async function executeSale(sumExtra){
   try{
     if(newQty===0&&keepHold===0) await sbDelete('inventory',sellInvRow.id);
     else await sbUpdate('inventory',sellInvRow.id,{quantity:newQty,hold_qty:keepHold,linda_payment:inventoryAmount({...sellInvRow,quantity:newQty,hold_qty:keepHold})});
-    await sbInsert('sales',{sale_date:saleDate,entry_date:sellInvRow.entry_date||null,category:sellInvRow.category||null,supplier:sellInvRow.supplier||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,lot_dc:sellInvRow.lot_dc||null,buyer,notes});
-    await sbInsert('summary',{date:saleDate,spec:sellInvRow.spec,biz_type:'销售',category:sellInvRow.category||null,supplier:sumExtra.supplier||'库存',part_number:sellInvRow.part_number,quantity:qty,sale_price:sp,lot_dc:sellInvRow.lot_dc||null,buyer,collection_price:sumExtra.collection_price||null,collection_method:sumExtra.collection_method||null,receive_code:sumExtra.receive_code||null,notes});
+    const boxFields={brand:sellInvRow.brand||null,lot:sellInvRow.lot||null,dc:sellInvRow.dc||null,origin:sellInvRow.origin||null};
+    await sbInsert('sales',{sale_date:saleDate,entry_date:sellInvRow.entry_date||null,supplier:sellInvRow.supplier||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:sellInvRow.spec,part_number:sellInvRow.part_number,...boxFields,buyer,notes});
+    await sbInsert('summary',{date:saleDate,spec:sellInvRow.spec,biz_type:'销售',supplier:sumExtra.supplier||'库存',part_number:sellInvRow.part_number,quantity:qty,sale_price:sp,...boxFields,buyer,collection_price:sumExtra.collection_price||null,collection_method:sumExtra.collection_method||null,receive_code:sumExtra.receive_code||null,notes});
     showNotif(`已售出 ${fmt(qty)} 件${newQty===0&&keepHold===0?'，库存条目已移除':('，剩余库存 '+fmt(newQty)+(keepHold>0?`（锁货 ${fmt(keepHold)} 件）`:''))} ✓`);
     await loadInventory(); await loadSales(); await loadSummary();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -2072,7 +2010,7 @@ function openHoldConfirmModal(invId){
   const holdQty=holdConfirmRow.hold_qty||0;
   const cost=parseFloat(holdConfirmRow.unit_price)||0;
   $('hold-confirm-info').innerHTML=
-    `规格：<b style="color:var(--text)">${holdConfirmRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b style="color:var(--text)">${holdConfirmRow.part_number||''}</b><br>`+
+    `规格：<b style="color:var(--text)">${holdConfirmRow.spec||''}</b> &nbsp;|&nbsp; 物料编码：<b style="color:var(--text)">${holdConfirmRow.part_number||''}</b><br>`+
     `锁货数量：<b style="color:var(--accent3)">${fmt(holdQty)}</b> &nbsp;|&nbsp; 总库存：<b style="color:var(--accent)">${fmt(holdConfirmRow.quantity)}</b>`;
   $('fhc-hold-display').textContent=fmt(holdQty);
   $('fhc-quantity').value=holdQty; // default = all hold
@@ -2113,7 +2051,7 @@ $('hold-confirm-save').addEventListener('click',async()=>{
   // temporarily set sellInvRow for executeSale
   sellInvRow=holdConfirmRow;
   $('sell-sum-info').innerHTML=
-    `规格：<b style="color:var(--text)">${holdConfirmRow.spec||''}</b> &nbsp;|&nbsp; 料号：<b style="color:var(--text)">${holdConfirmRow.part_number||''}</b><br>`+
+    `规格：<b style="color:var(--text)">${holdConfirmRow.spec||''}</b> &nbsp;|&nbsp; 物料编码：<b style="color:var(--text)">${holdConfirmRow.part_number||''}</b><br>`+
     `出售锁货：<b style="color:var(--accent3)">${fmt(qty)}</b> &nbsp;|&nbsp; 售价：<b style="color:var(--text2)">${sp.toFixed(2)}</b>`+
     (newHold>0?` &nbsp;|&nbsp; 剩余锁货：<b style="color:var(--accent)">${fmt(newHold)}</b>`:'');
   $('fss-supplier').value='库存';
@@ -2145,12 +2083,11 @@ function renderSales(){
   const lotSearch=$('sales-lot-filter').value.trim().toLowerCase();
   let rows=salesData.filter(r=>
     (selectedSalesSpecs.size===0||selectedSalesSpecs.has(r.spec))&&
-    (selectedSalesCats.size===0||selectedSalesCats.has(r.category))&&
     (selectedSalesPn.size===0||selectedSalesPn.has(r.part_number))&&
     (selectedSalesSupplier.size===0||selectedSalesSupplier.has(r.supplier))&&
     (selectedSalesBuyer.size===0||selectedSalesBuyer.has(r.buyer))&&
-    (!search||['spec','category','part_number','buyer','supplier','lot_dc','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
-    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
+    (!search||['spec','brand','part_number','buyer','supplier','lot','dc','origin','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{ let av=a[salesSortCol]??'',bv=b[salesSortCol]??''; return salesSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sales-empty').style.display=rows.length?'none':'block';
@@ -2166,12 +2103,14 @@ function renderSales(){
         <button class="action-btn btn-edit" data-action="sale-edit" data-id="${r.id}">编辑</button>
         <button class="action-btn btn-del" data-action="sale-del" data-id="${r.id}">删除</button>
       </td>
-      <td>${r.category||''}</td>
+      <td>${r.brand||''}</td>
       <td>${r.spec||''}</td>
       <td class="mono">${r.entry_date||''}</td>
       <td>${r.supplier||''}</td>
       <td class="mono" style="font-size:10px">${r.part_number||''}</td>
-      <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
+      <td class="mono" style="font-size:10px">${r.lot||''}</td>
+      <td class="mono" style="font-size:10px">${r.dc||''}</td>
+      <td>${r.origin||''}</td>
       <td class="mono">${fmt(r.quantity)}</td>
       <td class="mono">${r.cost_price!=null?(+r.cost_price).toFixed(2):''}</td>
       <td class="mono">${r.sale_date||''}</td>
@@ -2207,34 +2146,31 @@ function updateSalesStats(filteredRows){
 }
 
 // ── Sales multi-select filters ──────────
-let selectedSalesSpecs=new Set(), selectedSalesCats=new Set(),
-    selectedSalesPn=new Set(), selectedSalesSupplier=new Set(), selectedSalesBuyer=new Set();
+let selectedSalesSpecs=new Set(), selectedSalesPn=new Set(), selectedSalesSupplier=new Set(), selectedSalesBuyer=new Set();
 
 function updateSalesClearBtn(){
-  const has=selectedSalesSpecs.size||selectedSalesCats.size||selectedSalesPn.size||selectedSalesSupplier.size||selectedSalesBuyer.size||$('sales-search').value||$('sales-lot-filter').value;
+  const has=selectedSalesSpecs.size||selectedSalesPn.size||selectedSalesSupplier.size||selectedSalesBuyer.size||$('sales-search').value||$('sales-lot-filter').value;
   $('sales-clear-filter-btn').style.display=has?'':'none';
 }
 
 const msSalesSpec=buildMsGeneric('ms-sales-spec-wrap','ms-sales-spec-btn','ms-sales-spec-label','ms-sales-spec-panel',
   ()=>[...new Set(salesData.map(r=>r.spec).filter(Boolean))].sort(),selectedSalesSpecs,'全部规格',()=>{ updateSalesClearBtn(); renderSales(); });
-const msSalesCat=buildMsGeneric('ms-sales-cat-wrap','ms-sales-cat-btn','ms-sales-cat-label','ms-sales-cat-panel',
-  ()=>[...new Set(salesData.map(r=>r.category).filter(Boolean))].sort(),selectedSalesCats,'全部类别',()=>{ updateSalesClearBtn(); renderSales(); });
 const msSalesPn=buildMsGeneric('ms-sales-pn-wrap','ms-sales-pn-btn','ms-sales-pn-label','ms-sales-pn-panel',
-  ()=>[...new Set(salesData.map(r=>r.part_number).filter(Boolean))].sort(),selectedSalesPn,'全部料号',()=>{ updateSalesClearBtn(); renderSales(); });
+  ()=>[...new Set(salesData.map(r=>r.part_number).filter(Boolean))].sort(),selectedSalesPn,'全部物料编码',()=>{ updateSalesClearBtn(); renderSales(); });
 const msSalesSupplier=buildMsGeneric('ms-sales-supplier-wrap','ms-sales-supplier-btn','ms-sales-supplier-label','ms-sales-supplier-panel',
   ()=>[...new Set(salesData.map(r=>r.supplier).filter(Boolean))].sort(),selectedSalesSupplier,'全部供应商',()=>{ updateSalesClearBtn(); renderSales(); });
 const msSalesBuyer=buildMsGeneric('ms-sales-buyer-wrap','ms-sales-buyer-btn','ms-sales-buyer-label','ms-sales-buyer-panel',
   ()=>[...new Set(salesData.map(r=>r.buyer).filter(Boolean))].sort(),selectedSalesBuyer,'全部客户',()=>{ updateSalesClearBtn(); renderSales(); });
 
-function buildSalesMsPanel(){ [msSalesSpec,msSalesCat,msSalesPn,msSalesSupplier,msSalesBuyer].forEach(m=>m?.rebuild()); }
+function buildSalesMsPanel(){ [msSalesSpec,msSalesPn,msSalesSupplier,msSalesBuyer].forEach(m=>m?.rebuild()); }
 function refreshSalesFilters(){ buildSalesMsPanel(); }
 
 $('sales-clear-filter-btn').addEventListener('click',()=>{
-  [selectedSalesSpecs,selectedSalesCats,selectedSalesPn,selectedSalesSupplier,selectedSalesBuyer].forEach(s=>s.clear());
+  [selectedSalesSpecs,selectedSalesPn,selectedSalesSupplier,selectedSalesBuyer].forEach(s=>s.clear());
   $('sales-search').value='';
   $('sales-lot-filter').value='';
   buildSalesMsPanel();
-  [msSalesSpec,msSalesCat,msSalesPn,msSalesSupplier,msSalesBuyer].forEach(m=>m?.updateLabel());
+  [msSalesSpec,msSalesPn,msSalesSupplier,msSalesBuyer].forEach(m=>m?.updateLabel());
   updateSalesClearBtn(); renderSales();
 });
 $('sales-search').addEventListener('input',()=>{ updateSalesClearBtn(); renderSales(); });
@@ -2261,7 +2197,7 @@ $('sale-modal').addEventListener('click',e=>{ if(e.target===$('sale-modal'))clos
 function openSaleModal(id){
   saleEditId=id;
   $('sale-modal-title').textContent=id?'编辑销售记录':'新增销售';
-  const fields=['sale_date','entry_date','category','spec','supplier','part_number','quantity','sale_price','cost_price','sale_total','profit','buyer','notes'];
+  const fields=['sale_date','entry_date','brand','spec','supplier','part_number','lot','dc','origin','quantity','sale_price','cost_price','sale_total','profit','buyer','notes'];
   if(id){ const r=salesData.find(x=>x.id===id); fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=r[f]??''; }); }
   else{ fields.forEach(f=>{ const el=$('fsa-'+f);if(el)el.value=''; }); $('fsa-sale_date').value=today(); }
   openModal('sale-modal');
@@ -2279,7 +2215,7 @@ $('sale-modal-save').addEventListener('click',async()=>{
   const qty=parseInt(g('quantity'))||0,sp=parseFloat(g('sale_price'));
   if(!g('sale_date')||!qty||!sp){ showNotif('请填写必填项',true);return; }
   const cp=parseFloat(g('cost_price'))||null;
-  const payload={sale_date:g('sale_date'),entry_date:g('entry_date')||null,category:g('category')||null,supplier:g('supplier')||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:g('spec')||null,part_number:g('part_number')||null,buyer:g('buyer')||null,notes:g('notes')||null};
+  const payload={sale_date:g('sale_date'),entry_date:g('entry_date')||null,brand:g('brand')||null,supplier:g('supplier')||null,quantity:qty,sale_price:sp,sale_total:qty*sp,cost_price:cp,profit:cp!=null?qty*(sp-cp):null,spec:g('spec')||null,part_number:g('part_number')||null,lot:g('lot')||null,dc:g('dc')||null,origin:g('origin')||null,buyer:g('buyer')||null,notes:g('notes')||null};
   try{
     saleEditId?await sbUpdate('sales',saleEditId,payload):await sbInsert('sales',payload);
     showNotif(saleEditId?'已更新 ✓':'已保存 ✓');
@@ -2307,8 +2243,8 @@ function renderSummary(){
     (selSumSupplier.size===0||selSumSupplier.has(r.supplier))&&
     (selSumPn.size===0||selSumPn.has(r.part_number))&&
     (selSumBuyer.size===0||selSumBuyer.has(r.buyer))&&
-    (!search||['spec','supplier','part_number','buyer','order_code','receive_code','lot_dc','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
-    (!lotSearch||(r.lot_dc||'').toLowerCase().includes(lotSearch))
+    (!search||['spec','brand','supplier','part_number','buyer','order_code','receive_code','lot','dc','origin','notes'].some(f=>(r[f]||'').toLowerCase().includes(search)))&&
+    (!lotSearch||(r.lot||'').toLowerCase().includes(lotSearch))
   );
   rows.sort((a,b)=>{ let av=a[sumSortCol]??'',bv=b[sumSortCol]??''; return sumSortAsc?(av>bv?1:-1):(av<bv?1:-1); });
   $('sum-empty').style.display=rows.length?'none':'block';
@@ -2323,6 +2259,7 @@ function renderSummary(){
     </td>
     <td class="mono">${r.date||''}</td>
     <td>${r.spec||''}</td>
+    <td>${r.brand||''}</td>
     <td>${bizTag(r.biz_type||'')}</td>
     <td>${r.supplier||''}</td>
     <td class="mono" style="font-size:10px">${r.part_number||''}</td>
@@ -2338,7 +2275,9 @@ function renderSummary(){
     <td class="mono" style="color:var(--green)">${(r.sale_price!=null&&r.quantity!=null)?fmtM((+r.sale_price)*(+r.quantity)):''}</td>
     <td>${r.collection_method||''}</td>
     <td>${r.receive_code||''}</td>
-    <td><span class="lot-cell" title="${(r.lot_dc||'').replace(/"/g,'&quot;')}">${r.lot_dc||''}</span></td>
+    <td class="mono" style="font-size:10px">${r.lot||''}</td>
+    <td class="mono" style="font-size:10px">${r.dc||''}</td>
+    <td>${r.origin||''}</td>
     <td>${r.warranty||''}</td>
     <td style="font-size:11px">${r.min_package||''}</td>
     <td class="mono">${r.delivery_date||''}</td>
@@ -2385,7 +2324,7 @@ function updateSumClearBtn(){
 const msSumSpec     =buildMsGeneric('ms-sum-spec-wrap',    'ms-sum-spec-btn',    'ms-sum-spec-label',    'ms-sum-spec-panel',    ()=>[...new Set(summaryData.map(r=>r.spec).filter(Boolean))].sort(),        selSumSpec,    '全部规格',  ()=>{ updateSumClearBtn(); renderSummary(); });
 const msSumBiz      =buildMsGeneric('ms-sum-biz-wrap',     'ms-sum-biz-btn',     'ms-sum-biz-label',     'ms-sum-biz-panel',     ()=>[...new Set(summaryData.map(r=>r.biz_type).filter(Boolean))].sort(),    selSumBiz,     '全部业务',  ()=>{ updateSumClearBtn(); renderSummary(); });
 const msSumSupplier =buildMsGeneric('ms-sum-supplier-wrap','ms-sum-supplier-btn','ms-sum-supplier-label','ms-sum-supplier-panel',()=>[...new Set(summaryData.map(r=>r.supplier).filter(Boolean))].sort(),     selSumSupplier,'全部供应商',()=>{ updateSumClearBtn(); renderSummary(); });
-const msSumPn       =buildMsGeneric('ms-sum-pn-wrap',      'ms-sum-pn-btn',      'ms-sum-pn-label',      'ms-sum-pn-panel',      ()=>[...new Set(summaryData.map(r=>r.part_number).filter(Boolean))].sort(), selSumPn,      '全部料号',  ()=>{ updateSumClearBtn(); renderSummary(); });
+const msSumPn       =buildMsGeneric('ms-sum-pn-wrap',      'ms-sum-pn-btn',      'ms-sum-pn-label',      'ms-sum-pn-panel',      ()=>[...new Set(summaryData.map(r=>r.part_number).filter(Boolean))].sort(), selSumPn,      '全部物料编码',  ()=>{ updateSumClearBtn(); renderSummary(); });
 const msSumBuyer    =buildMsGeneric('ms-sum-buyer-wrap',   'ms-sum-buyer-btn',   'ms-sum-buyer-label',   'ms-sum-buyer-panel',   ()=>[...new Set(summaryData.map(r=>r.buyer).filter(Boolean))].sort(),       selSumBuyer,   '全部客户',  ()=>{ updateSumClearBtn(); renderSummary(); });
 
 function buildSumMsPanels(){ [msSumSpec,msSumBiz,msSumSupplier,msSumPn,msSumBuyer].forEach(m=>m?.rebuild()); }
@@ -2472,10 +2411,52 @@ $('sum-add-btn').addEventListener('click',()=>openSumModal(null));
 ['sum-modal-close','sum-modal-cancel'].forEach(id=>$(id).addEventListener('click',()=>closeModal('sum-modal')));
 $('sum-modal').addEventListener('click',e=>{ if(e.target===$('sum-modal'))closeModal('sum-modal'); });
 
+function parseBoxDetails(value){
+  return value.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map((line,index)=>{
+    const match=line.match(/^(\S+)\s+([1-9]\d*)\s+(\S+)\s+(\S+)\s+(.+)$/);
+    if(!match) throw new Error(`第 ${index+1} 行格式错误，应为：LOT 数量 DC 产地 备注`);
+    return {lot:match[1],quantity:Number(match[2]),dc:match[3],origin:match[4],notes:match[5].trim()};
+  });
+}
+
+function updateBoxDetailsSummary(){
+  const value=$('fsum-box_details').value;
+  if(!value.trim()){
+    $('fsum-quantity').value='';
+    $('fsum-box-summary').textContent='输入后将显示箱数和总数量；备注可包含空格。';
+    $('fsum-box-summary').style.color='';
+    return;
+  }
+  try{
+    const boxes=parseBoxDetails(value);
+    const total=boxes.reduce((sum,box)=>sum+box.quantity,0);
+    $('fsum-quantity').value=total;
+    $('fsum-box-summary').textContent=`已识别 ${boxes.length} 箱，总数量 ${fmt(total)}`;
+    $('fsum-box-summary').style.color='var(--accent)';
+  }catch(e){
+    $('fsum-quantity').value='';
+    $('fsum-box-summary').textContent=e.message;
+    $('fsum-box-summary').style.color='var(--red)';
+  }
+}
+
+function updateSumEntryMode(){
+  const bulk=$('fsum-biz_type').value==='进货'&&!sumEditId;
+  $('fsum-box-details-group').style.display=bulk?'':'none';
+  ['fsum-lot-group','fsum-dc-group','fsum-origin-group','fsum-notes-group'].forEach(id=>$(id).style.display=bulk?'none':'');
+  $('fsum-quantity').readOnly=bulk;
+  $('fsum-quantity').style.background=bulk?'var(--surface2)':'';
+  $('sum-inv-sync-notice').style.display=bulk?'block':'none';
+  if(bulk) updateBoxDetailsSummary();
+}
+
+$('fsum-box_details').addEventListener('input',updateBoxDetailsSummary);
+$('fsum-biz_type').addEventListener('change',updateSumEntryMode);
+
 function openSumModal(id){
   sumEditId=id;
   $('sum-modal-title').textContent=id?'编辑汇总记录':'新增入库';
-  const fields=['date','spec','biz_type','category','supplier','part_number','quantity','order_code','payment_method','order_price','actual_price','buyer','sale_price','collection_price','collection_method','receive_code','lot_dc','warranty','min_package','delivery_date','notes'];
+  const fields=['date','spec','biz_type','brand','supplier','part_number','quantity','order_code','payment_method','order_price','actual_price','buyer','sale_price','collection_price','collection_method','receive_code','lot','dc','origin','warranty','min_package','delivery_date','notes','box_details'];
   if(id){
     const r=summaryData.find(x=>x.id===id);
     fields.forEach(f=>{ const el=$('fsum-'+f);if(el)el.value=r[f]??''; });
@@ -2483,39 +2464,45 @@ function openSumModal(id){
     fields.forEach(f=>{ const el=$('fsum-'+f);if(el)el.value=''; });
     $('fsum-date').value=today(); $('fsum-biz_type').value='进货';
   }
-  $('sum-inv-sync-notice').style.display=$('fsum-biz_type').value==='进货'&&!id?'block':'none';
+  updateSumEntryMode();
   openModal('sum-modal');
 }
 
 $('sum-modal-save').addEventListener('click',async()=>{
   const g=f=>$('fsum-'+f).value.trim();
   if(!g('date')||!g('spec')||!g('biz_type')){ showNotif('请填写必填项（*）',true);return; }
-  const payload={
-    date:g('date'),spec:g('spec'),biz_type:g('biz_type'),category:g('category')||null,supplier:g('supplier')||null,
+  const common={
+    date:g('date'),spec:g('spec'),biz_type:g('biz_type'),brand:g('brand')||null,supplier:g('supplier')||null,
     part_number:g('part_number')||null,quantity:parseInt(g('quantity'))||null,
     order_code:g('order_code')||null,payment_method:g('payment_method')||null,
     order_price:parseFloat(g('order_price'))||null,actual_price:parseFloat(g('actual_price'))||null,
     buyer:g('buyer')||null,sale_price:parseFloat(g('sale_price'))||null,
     collection_price:parseFloat(g('collection_price'))||null,collection_method:g('collection_method')||null,
-    receive_code:g('receive_code')||null,lot_dc:g('lot_dc')||null,warranty:g('warranty')||null,
+    receive_code:g('receive_code')||null,lot:g('lot')||null,dc:g('dc')||null,origin:g('origin')||null,warranty:g('warranty')||null,
     min_package:g('min_package')||null,delivery_date:g('delivery_date')||null,notes:g('notes')||null
   };
   try{
-    sumEditId?await sbUpdate('summary',sumEditId,payload):await sbInsert('summary',payload);
-    // If new entry and biz_type is 进货, also insert into inventory
     if(!sumEditId && g('biz_type')==='进货'){
-      const qty=parseInt(g('quantity'))||0, price=parseFloat(g('order_price'))||null;
-      const invPayload={
-        entry_date:g('date'),spec:g('spec'),category:g('category')||null,part_number:g('part_number')||null,
-        quantity:qty,unit_price:price,
-        linda_payment:qty&&price?qty*price:null,
-        min_package:g('min_package')||null,
-        lot_dc:g('lot_dc')||null,
-        warehouse_status:'待售',notes:null
-      };
-      await sbInsert('inventory',invPayload);
-      showNotif('已保存汇总，并同步新增库存记录 ✓');
+      const boxes=parseBoxDetails(g('box_details'));
+      if(!boxes.length){ showNotif('请至少输入一行箱明细',true);return; }
+      const price=parseFloat(g('order_price'))||null;
+      const summaryRows=boxes.map(box=>({...common,...box}));
+      const inventoryRows=boxes.map(box=>({
+        entry_date:g('date'),spec:g('spec'),brand:g('brand')||null,part_number:g('part_number')||null,
+        quantity:box.quantity,unit_price:price,linda_payment:price?box.quantity*price:null,
+        min_package:g('min_package')||null,lot:box.lot,dc:box.dc,origin:box.origin,
+        warehouse_status:'待售',notes:box.notes
+      }));
+      const insertedSummary=await sbInsert('summary',summaryRows);
+      try{
+        await sbInsert('inventory',inventoryRows);
+      }catch(e){
+        await Promise.allSettled(insertedSummary.map(row=>sbDelete('summary',row.id)));
+        throw e;
+      }
+      showNotif(`已按箱新增 ${boxes.length} 条汇总和库存记录 ✓`);
     } else {
+      sumEditId?await sbUpdate('summary',sumEditId,common):await sbInsert('summary',common);
       showNotif(sumEditId?'已更新 ✓':'已保存 ✓');
     }
     closeModal('sum-modal'); await loadSummary(); await loadInventory();
